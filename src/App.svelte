@@ -67,21 +67,28 @@
   });
 
   async function loadUserCredits(userId, email) {
+    // 1. Instant load from LocalStorage cache
+    const cached = localStorage.getItem("safeclause_credits_" + userId);
+    if (cached !== null) {
+      userCredits = parseInt(cached, 10);
+    }
+
+    // 2. Fetch fresh ground-truth from Supabase
     try {
-      let { data } = await supabase
-        .from('profiles')
-        .select('credits')
-        .eq('id', userId)
+      let { data, error } = await supabase
+        .from("profiles")
+        .select("credits")
+        .eq("id", userId)
         .single();
 
       if (!data) {
-        await supabase.from('profiles').upsert({ id: userId, email: email, credits: 0 });
-        userCredits = 0;
+        await supabase.from("profiles").upsert({ id: userId, email: email, credits: userCredits || 0 });
       } else {
         userCredits = data.credits || 0;
+        localStorage.setItem("safeclause_credits_" + userId, userCredits);
       }
     } catch (e) {
-      console.warn("Credits error:", e.message);
+      console.warn("Credits fetch note:", e.message);
     }
   }
 
@@ -169,7 +176,7 @@
         throw new Error(json.error || 'Receipt verification failed.');
       }
 
-      userCredits = json.credits;
+      userCredits = json.credits; if (currentUser) localStorage.setItem('safeclause_credits_' + currentUser.id, json.credits);
       verifiedUtr = json.utr;
       paymentSuccess = true;
 
@@ -199,7 +206,7 @@
         .update({ credits: newBalance })
         .eq('id', currentUser.id);
 
-      userCredits = newBalance;
+      userCredits = newBalance; localStorage.setItem('safeclause_credits_' + currentUser.id, newBalance);
       hasUnlocked = true;
     } catch (e) {
       userCredits = Math.max(0, userCredits - 1);
