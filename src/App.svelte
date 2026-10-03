@@ -84,7 +84,11 @@
       if (!data) {
         await supabase.from("profiles").upsert({ id: userId, email: email, credits: userCredits || 0 });
       } else {
-        userCredits = data.credits || 0;
+        const cached = parseInt(localStorage.getItem("safeclause_credits_" + userId) || "0");
+        userCredits = Math.max(data.credits || 0, cached);
+        if (userCredits > (data.credits || 0)) {
+          supabase.from("profiles").update({ credits: userCredits }).eq("id", userId).then(() => {});
+        }
         localStorage.setItem("safeclause_credits_" + userId, userCredits);
       }
     } catch (e) {
