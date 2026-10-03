@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Call OpenRouter Multimodal Vision AI
+    // 1. OpenRouter Stable Multimodal Vision Model (Gemini Flash 1.5)
     const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -30,38 +30,38 @@ export default async function handler(req, res) {
         'X-Title': 'SafeClause Payment Auditor'
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-001',
+        model: 'google/gemini-flash-1.5',
         messages: [
           {
             role: 'system',
-            content: `You are a strict financial fraud prevention auditor in India.
-Your job is to inspect UPI transaction payment receipt screenshots (GPay, PhonePe, Paytm, FamPay, BHIM, Bank Apps).
+            content: `You are a financial fraud verification system in India.
+Inspect the uploaded UPI payment receipt screenshot (FamPay, Paytm, PhonePe, Google Pay, GPay, BHIM, Bank).
 
-Target Payee Name: "Ashok Ray" (allow minor case differences).
+Target Payee Name: "Ashok Ray" (allow case insensitivity).
 Target Amount: ${expectedPrice} INR.
 
-Strict Rules:
-- Status must clearly indicate SUCCESS/PAID (green tick or completed status).
-- Amount must be EQUAL TO OR GREATER THAN ${expectedPrice}. If it is 1 INR or less than ${expectedPrice}, amount_valid must be FALSE.
-- Payee name must match Ashok Ray.
-- Extract the 12-digit UPI Reference / UTR Number.
+Verification Criteria:
+1. Status must indicate SUCCESS / PAID / COMPLETED.
+2. Amount must be equal to or greater than ${expectedPrice}. If the receipt shows 1 INR or anything less than ${expectedPrice}, amount_valid must be FALSE.
+3. Payee name must match Ashok Ray.
+4. Extract the 12-digit UPI Reference / UTR Number.
 
-Output ONLY valid JSON in this exact structure:
+Return ONLY a valid JSON object:
 {
   "is_valid_receipt": true/false,
   "status_success": true/false,
-  "payee_name": "detected name",
+  "payee_name": "extracted payee name",
   "payee_matches": true/false,
   "amount_paid": number,
   "amount_valid": true/false,
   "utr_number": "12-digit string or null",
-  "rejection_reason": "Clear short explanation if rejected, or null if approved"
+  "rejection_reason": "Clear explanation in English if rejected, or null if approved"
 }`
           },
           {
             role: 'user',
             content: [
-              { type: 'text', text: `Verify if this receipt shows a successful payment of ₹${expectedPrice} to Ashok Ray.` },
+              { type: 'text', text: `Verify if this receipt shows a successful payment of exactly ₹${expectedPrice} to Ashok Ray.` },
               { type: 'image_url', image_url: { url: imageBase64 } }
             ]
           }
@@ -78,9 +78,9 @@ Output ONLY valid JSON in this exact structure:
 
     const parsedContent = JSON.parse(aiData.choices[0].message.content);
 
-    // 2. Validate AI Decisions
+    // 2. Fraud & Rule Checks
     if (!parsedContent.is_valid_receipt || !parsedContent.status_success) {
-      return res.status(400).json({ error: parsedContent.rejection_reason || 'Image is not a valid successful payment receipt.' });
+      return res.status(400).json({ error: parsedContent.rejection_reason || 'Screenshot is not a valid successful payment receipt.' });
     }
 
     if (!parsedContent.payee_matches) {
@@ -93,10 +93,10 @@ Output ONLY valid JSON in this exact structure:
 
     const detectedUtr = parsedContent.utr_number ? String(parsedContent.utr_number).replace(/\D/g, '') : null;
     if (!detectedUtr || detectedUtr.length < 8) {
-      return res.status(400).json({ error: 'Could not detect a clear 12-digit UPI Reference/UTR on the receipt.' });
+      return res.status(400).json({ error: 'Could not extract a clear 12-digit UTR from the receipt.' });
     }
 
-    // 3. Supabase Database Deduplication
+    // 3. Database Duplicate UTR Check
     const supabase = createClient(supabaseUrl, supabaseServiceKey || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNldHpianpwZ29tdXZncmNnZ2pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NTE1NzcsImV4cCI6MjEwNjUyNzU3N30.R2tV8fWGVKIG6G44PcQvjwTkwLWnhGcOjkH_mwT4Z_0");
 
     const { data: existing } = await supabase
@@ -106,10 +106,10 @@ Output ONLY valid JSON in this exact structure:
       .limit(1);
 
     if (existing && existing.length > 0) {
-      return res.status(400).json({ error: `This UTR (${detectedUtr}) has already been redeemed previously!` });
+      return res.status(400).json({ error: `This UTR (${detectedUtr}) has already been used previously!` });
     }
 
-    // 4. Record Payment & Add Credits
+    // 4. Grant Credits to User
     const creditsToAdd = planName.toLowerCase().includes('pro') ? 10 : 1;
 
     if (userId) {
@@ -145,6 +145,6 @@ Output ONLY valid JSON in this exact structure:
     return res.status(200).json({ success: true, credits: creditsToAdd, utr: detectedUtr });
 
   } catch (err) {
-    return res.status(500).json({ error: err.message || 'Verification failed. Try again.' });
+    return res.status(500).json({ error: err.message || 'Verification service error.' });
   }
 }
