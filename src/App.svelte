@@ -69,7 +69,7 @@
   function copyUpiId() {
     navigator.clipboard.writeText(upiId);
     copiedUpi = true;
-    setTimeout(() => copiedUpi = false, 2000);
+    setTimeout(() => { copiedUpi = false; }, 2000);
   }
 
   async function submitUtrVerification() {
@@ -124,7 +124,7 @@
         if (error) throw error;
         authMessage = "Account created successfully! Redirecting to Auditor...";
         currentUser = data.user;
-        setTimeout(() => navigateTo('audit'), 800);
+        setTimeout(() => { navigateTo('audit'); }, 800);
       } else if (authMode === 'login') {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: authEmail,
@@ -133,7 +133,7 @@
         if (error) throw error;
         currentUser = data.user;
         authMessage = "Logged in successfully!";
-        setTimeout(() => navigateTo('audit'), 600);
+        setTimeout(() => { navigateTo('audit'); }, 600);
       } else if (authMode === 'forgot') {
         const { error } = await supabase.auth.resetPasswordForEmail(authEmail);
         if (error) throw error;
@@ -189,32 +189,38 @@
     if (!file) return;
 
     contractTitle = file.name.replace(/\.[^/.]+$/, "");
+    errorMessage = '';
 
-    if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
       try {
         if (!window.pdfjsLib) {
           await new Promise((resolve, reject) => {
-            const s = document.createElement("script");
-            s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-            s.onload = () => {
+            const script = document.createElement("script");
+            script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+            script.onload = () => {
               window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
               resolve();
             };
-            s.onerror = reject;
-            document.head.appendChild(s);
+            script.onerror = () => reject(new Error("PDF engine error"));
+            document.head.appendChild(script);
           });
         }
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let extracted = "";
+        let fullText = "";
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          extracted += textContent.items.map(item => item.str).join(" ") + "\n\n";
+          const content = await page.getTextContent();
+          const pageText = content.items.map(item => item.str).join(" ");
+          fullText += pageText + "\n\n";
         }
-        contractText = extracted.trim();
+        if (fullText.trim().length > 20) {
+          contractText = fullText.trim();
+        } else {
+          errorMessage = "Could not extract text. Please copy-paste clauses directly.";
+        }
       } catch (err) {
-        errorMessage = "Could not extract text from this PDF. Please copy-paste the text directly.";
+        errorMessage = "Error reading PDF. Please paste the clauses into the text box.";
       }
     } else {
       const reader = new FileReader();
@@ -222,16 +228,15 @@
       reader.readAsText(file);
     }
   }
-  }
 
   function copyText(text, index, type) {
     navigator.clipboard.writeText(text);
     if (type === 'clause') {
       copiedIndex = index;
-      setTimeout(() => copiedIndex = null, 2000);
+      setTimeout(() => { copiedIndex = null; }, 2000);
     } else {
       copiedEmailIndex = index;
-      setTimeout(() => copiedEmailIndex = null, 2000);
+      setTimeout(() => { copiedEmailIndex = null; }, 2000);
     }
   }
 
@@ -253,7 +258,7 @@
 </script>
 
 <div class="app-wrapper">
-  <!-- TOP MOBILE-FIRST NAVBAR -->
+  <!-- TOP MOBILE NAVBAR -->
   <header class="app-header">
     <div class="brand" on:click={() => navigateTo('home')}>
       <div class="brand-shield">🛡️</div>
@@ -267,7 +272,7 @@
       {#if !currentUser}
         <button class="btn-nav-quick" on:click={() => navigateTo('audit')}>Try Free</button>
       {/if}
-      <button class="hamburger-btn" on:click={() => mobileMenuOpen = !mobileMenuOpen} aria-label="Menu">
+      <button class="hamburger-btn" on:click={() => { mobileMenuOpen = !mobileMenuOpen; }} aria-label="Menu">
         {mobileMenuOpen ? '✕' : '☰'}
       </button>
     </div>
@@ -275,7 +280,7 @@
 
   <!-- MOBILE SLIDE-DOWN DRAWER -->
   {#if mobileMenuOpen}
-    <div class="drawer-backdrop" on:click={() => mobileMenuOpen = false}>
+    <div class="drawer-backdrop" on:click={() => { mobileMenuOpen = false; }}>
       <nav class="mobile-drawer" on:click|stopPropagation>
         <div class="drawer-links">
           <button class="drawer-item {currentPage === 'home' ? 'active' : ''}" on:click={() => navigateTo('home')}>
@@ -306,9 +311,9 @@
     </div>
   {/if}
 
-  <!-- MAIN VIEWPORT CONTAINER -->
+  <!-- MAIN VIEWPORT -->
   <div class="viewport">
-    <!-- PAGE 1: HOME OVERVIEW -->
+    <!-- PAGE 1: HOME -->
     {#if currentPage === 'home'}
       <section class="hero-card">
         <div class="badge-pill">⚖️ Calibrated for Indian & Global Law</div>
@@ -329,7 +334,7 @@
         </div>
       </section>
 
-      <!-- PROBLEM CARDS -->
+      <!-- PROBLEMS -->
       <section class="section-block">
         <div class="block-eyebrow">THE 3 BIGGEST TRAPS</div>
         <h2 class="block-title">How Bad Contracts Trap Freelancers</h2>
@@ -399,13 +404,13 @@
         <div class="jur-container">
           <button 
             class="jur-tab {jurisdiction === 'INDIA' ? 'active' : ''}" 
-            on:click={() => jurisdiction = 'INDIA'}
+            on:click={() => { jurisdiction = 'INDIA'; }}
           >
             🇮🇳 India (Act 1872 / MSMED)
           </button>
           <button 
             class="jur-tab {jurisdiction === 'GLOBAL' ? 'active' : ''}" 
-            on:click={() => jurisdiction = 'GLOBAL'}
+            on:click={() => { jurisdiction = 'GLOBAL'; }}
           >
             🌐 US / UK / Remote Global
           </button>
@@ -645,16 +650,16 @@
     {/if}
   </div>
 
-  <!-- UPI PAYMENT MODAL (PAYTM BUSINESS MERCHANT INTEGRATION) -->
+  <!-- UPI PAYMENT MODAL -->
   {#if paymentModalOpen}
-    <div class="modal-layer" on:click={() => paymentModalOpen = false}>
+    <div class="modal-layer" on:click={() => { paymentModalOpen = false; }}>
       <div class="modal-box payment-sheet" on:click|stopPropagation>
         <div class="modal-header">
           <div>
             <h3 class="pay-title">Instant UPI Payment</h3>
             <span class="pay-plan-badge">{selectedPlan.name} • ₹{selectedPlan.price}</span>
           </div>
-          <button class="modal-close" on:click={() => paymentModalOpen = false}>✕</button>
+          <button class="modal-close" on:click={() => { paymentModalOpen = false; }}>✕</button>
         </div>
 
         {#if paymentSuccess}
@@ -691,7 +696,7 @@
               </div>
             </div>
 
-            <!-- UTR / REF NUMBER VERIFICATION FORM -->
+            <!-- UTR VERIFICATION -->
             <div class="utr-section">
               <label for="utr-input" class="input-lbl">Enter 12-Digit UPI Reference / UTR Number</label>
               <p class="utr-tip">After paying, copy the 12-digit transaction ID from your UPI app receipt.</p>
@@ -724,14 +729,14 @@
     </div>
   {/if}
 
-  <!-- COMPACT MOBILE FOOTER -->
+  <!-- FOOTER -->
   <footer class="app-footer">
     <div class="footer-pills">
-      <button on:click={() => legalModal = 'privacy'}>Privacy</button>
+      <button on:click={() => { legalModal = 'privacy'; }}>Privacy</button>
       <span class="sep">•</span>
-      <button on:click={() => legalModal = 'terms'}>Terms</button>
+      <button on:click={() => { legalModal = 'terms'; }}>Terms</button>
       <span class="sep">•</span>
-      <button on:click={() => legalModal = 'refund'}>Refunds</button>
+      <button on:click={() => { legalModal = 'refund'; }}>Refunds</button>
     </div>
     <div class="footer-note">
       SafeClause is an AI document auditing tool. Outputs do not constitute formal legal counsel under the Advocates Act.
@@ -741,11 +746,11 @@
 
   <!-- LEGAL MODAL -->
   {#if legalModal}
-    <div class="modal-layer" on:click={() => legalModal = null}>
+    <div class="modal-layer" on:click={() => { legalModal = null; }}>
       <div class="modal-box" on:click|stopPropagation>
         <div class="modal-header">
           <h3>{legalModal === 'privacy' ? 'Privacy Policy' : legalModal === 'terms' ? 'Terms of Service' : 'Refund Policy'}</h3>
-          <button class="modal-close" on:click={() => legalModal = null}>✕</button>
+          <button class="modal-close" on:click={() => { legalModal = null; }}>✕</button>
         </div>
         <div class="modal-text">
           {#if legalModal === 'privacy'}
@@ -802,13 +807,7 @@
     z-index: 50;
   }
 
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-  }
-
+  .brand { display: flex; align-items: center; gap: 10px; cursor: pointer; }
   .brand-shield { font-size: 1.4rem; line-height: 1; }
   .brand-info { display: flex; flex-direction: column; }
   .brand-title { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; color: #ffffff; }
@@ -903,7 +902,7 @@
     cursor: pointer;
   }
 
-  /* CARDS & GENERAL UI */
+  /* CARDS */
   .card {
     background: #0e1422;
     border: 1px solid rgba(255, 255, 255, 0.07);
@@ -952,7 +951,7 @@
 
   .trust-bullets { display: flex; gap: 10px; font-size: 0.7rem; color: #64748b; }
 
-  /* SECTIONS */
+  /* SECTION BLOCKS */
   .section-block { padding-top: 32px; }
   .block-eyebrow { font-size: 0.68rem; font-weight: 800; color: #10b981; letter-spacing: 0.08em; margin-bottom: 4px; }
   .block-title { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 14px; }
@@ -987,7 +986,7 @@
   .cta-box h3 { margin: 0 0 6px; font-size: 1.15rem; }
   .cta-box p { font-size: 0.85rem; color: #94a3b8; margin: 0 0 16px; }
 
-  /* TOOL */
+  /* AUDITOR */
   .tool-view { padding-top: 8px; }
   .view-header h2 { font-size: 1.3rem; font-weight: 800; margin: 0 0 4px; }
   .view-header p { font-size: 0.8rem; color: #94a3b8; margin: 0 0 14px; }
@@ -1159,7 +1158,7 @@
   .pwd-head { display: flex; justify-content: space-between; align-items: baseline; }
   .forgot-link { background: transparent; border: none; color: #38bdf8; font-size: 0.72rem; font-weight: 600; cursor: pointer; padding: 0; }
 
-  /* PAYMENT SHEET / MODAL */
+  /* PAYMENT SHEET */
   .payment-sheet {
     max-width: 420px;
     background: #0d1322;
@@ -1202,13 +1201,7 @@
     border-radius: 10px;
     padding: 12px;
   }
-  .qr-image {
-    width: 150px;
-    height: 150px;
-    border-radius: 6px;
-    background: #fff;
-    padding: 4px;
-  }
+  .qr-image { width: 150px; height: 150px; border-radius: 6px; background: #fff; padding: 4px; }
   .upi-handle-display {
     display: flex;
     align-items: center;
@@ -1244,10 +1237,7 @@
     cursor: pointer;
   }
 
-  .pay-success-box {
-    text-align: center;
-    padding: 24px 8px;
-  }
+  .pay-success-box { text-align: center; padding: 24px 8px; }
   .success-icon { font-size: 2.2rem; display: block; margin-bottom: 8px; }
   .pay-success-box h4 { margin: 0 0 6px; font-size: 1.2rem; color: #10b981; }
   .pay-success-box p { margin: 0; font-size: 0.82rem; color: #cbd5e1; line-height: 1.4; }
@@ -1279,7 +1269,7 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* MODAL LAYER */
+  /* MODAL */
   .modal-layer {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
