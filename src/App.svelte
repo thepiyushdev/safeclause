@@ -7,7 +7,8 @@
   let mobileMenuOpen = false;
   let legalModal = null;
 
-  // Paywall & Access State
+  // Paywall & Credit State
+  let userCredits = 0;
   let hasUnlocked = false;
 
   // Official Paytm for Business Merchant UPI Configuration
@@ -16,12 +17,11 @@
 
   // Payment Modal State
   let paymentModalOpen = false;
-  let selectedPlan = { name: 'Single Pass', price: 49, desc: '1 Full Contract Audit & Safe Clauses' };
+  let selectedPlan = { name: 'Single Pass', price: 49, credits: 1 };
   let utrNumber = '';
   let paymentSubmitting = false;
   let paymentSuccess = false;
   let paymentError = '';
-  let copiedUpi = false;
 
   // User Auth State
   let currentUser = null;
@@ -46,14 +46,43 @@
     try {
       const { data } = await supabase.auth.getSession();
       currentUser = data?.session?.user || null;
+      if (currentUser) {
+        await loadUserCredits(currentUser.id, currentUser.email);
+      }
 
-      supabase.auth.onAuthStateChange((_event, session) => {
+      supabase.auth.onAuthStateChange(async (_event, session) => {
         currentUser = session?.user || null;
+        if (currentUser) {
+          await loadUserCredits(currentUser.id, currentUser.email);
+        } else {
+          userCredits = 0;
+          hasUnlocked = false;
+        }
       });
     } catch (e) {
       console.warn("Supabase auth offline:", e.message);
     }
   });
+
+  async function loadUserCredits(userId, email) {
+    try {
+      let { data, error } = await supabase
+        .from('profiles')
+        .select('credits')
+        .eq('id', userId)
+        .single();
+
+      if (!data) {
+        // Initial profile creation with 0 credits
+        await supabase.from('profiles').upsert({ id: userId, email: email, credits: 0 });
+        userCredits = 0;
+      } else {
+        userCredits = data.credits || 0;
+      }
+    } catch (e) {
+      console.warn("Error fetching credits:", e.message);
+    }
+  }
 
   function navigateTo(page) {
     currentPage = page;
@@ -61,18 +90,16 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function openPayment(planName, price, desc) {
-    selectedPlan = { name: planName, price: price, desc: desc };
+  function openPayment(planName, price, creditsToAdd) {
+    if (!currentUser) {
+      navigateTo('auth');
+      return;
+    }
+    selectedPlan = { name: planName, price: price, credits: creditsToAdd };
     utrNumber = '';
     paymentSuccess = false;
     paymentError = '';
     paymentModalOpen = true;
-  }
-
-  function copyUpiId() {
-    navigator.clipboard.writeText(upiId);
-    copiedUpi = true;
-    setTimeout(() => { copiedUpi = false; }, 2000);
   }
 
   async function submitUtrVerification() {
@@ -86,7 +113,7 @@
     paymentError = '';
 
     try {
-      // Check duplicate UTR in payments table
+      // 1. Check duplicate UTR
       const { data: existing } = await supabase
         .from('payments')
         .select('id')
@@ -94,37 +121,66 @@
         .limit(1);
 
       if (existing && existing.length > 0) {
-        paymentError = 'This UTR number has already been used. Please enter your fresh transaction ID.';
+        paymentError = 'This UTR has already been redeemed. Please enter a fresh transaction ID.';
         paymentSubmitting = false;
         return;
       }
 
-      if (currentUser) {
-        await supabase.from('payments').insert({
-          user_id: currentUser.id,
-          amount: selectedPlan.price,
-          currency: 'INR',
-          plan_type: selectedPlan.name.toLowerCase().includes('single') ? 'single_pass' : 'pro_monthly',
-          payment_id: cleanUtr,
-          payment_status: 'verified_complete'
-        });
-      }
+      // 2. Insert Payment Record
+      await supabase.from('payments').insert({
+        user_id: currentUser.id,
+        amount: selectedPlan.price,
+        currency: 'INR',
+        plan_type: selectedPlan.name.toLowerCase().includes('single') ? 'single_pass' : 'pro_monthly',
+        payment_id: cleanUtr,
+        payment_status: 'verified_complete'
+      });
 
-      hasUnlocked = true;
+      // 3. Add Credits to User Profile
+      const updatedCredits = userCredits + selectedPlan.credits;
+      await supabase
+        .from('profiles')
+        .update({ credits: updatedCredits })
+        .eq('id', currentUser.id);
+
+      userCredits = updatedCredits;
       paymentSuccess = true;
+
       setTimeout(() => {
         paymentModalOpen = false;
-        navigateTo('audit');
-      }, 1800);
+        if (currentPage === 'audit' && auditResult && !hasUnlocked) {
+          useCreditToUnlock();
+        }
+      }, 1600);
     } catch (err) {
-      hasUnlocked = true;
+      userCredits += selectedPlan.credits;
       paymentSuccess = true;
       setTimeout(() => {
         paymentModalOpen = false;
-        navigateTo('audit');
-      }, 1800);
+      }, 1600);
     } finally {
       paymentSubmitting = false;
+    }
+  }
+
+  async function useCreditToUnlock() {
+    if (userCredits <= 0) {
+      openPayment('Single Pass', 49, 1);
+      return;
+    }
+
+    try {
+      const newBalance = userCredits - 1;
+      await supabase
+        .from('profiles')
+        .update({ credits: newBalance })
+        .eq('id', currentUser.id);
+
+      userCredits = newBalance;
+      hasUnlocked = true;
+    } catch (e) {
+      userCredits = Math.max(0, userCredits - 1);
+      hasUnlocked = true;
     }
   }
 
@@ -141,7 +197,8 @@
         });
         if (error) throw error;
         currentUser = data.user;
-        authMessage = "Account created successfully!";
+        await loadUserCredits(currentUser.id, currentUser.email);
+        authMessage = "Account ready!";
         setTimeout(() => { navigateTo('audit'); }, 600);
       } else if (authMode === 'login') {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -150,6 +207,7 @@
         });
         if (error) throw error;
         currentUser = data.user;
+        await loadUserCredits(currentUser.id, currentUser.email);
         authMessage = "Logged in successfully!";
         setTimeout(() => { navigateTo('audit'); }, 600);
       } else if (authMode === 'forgot') {
@@ -167,6 +225,7 @@
   async function handleLogout() {
     await supabase.auth.signOut();
     currentUser = null;
+    userCredits = 0;
     hasUnlocked = false;
     navigateTo('home');
   }
@@ -180,6 +239,7 @@
     loading = true;
     errorMessage = '';
     auditResult = null;
+    hasUnlocked = false; // Reset unlock state for fresh contract
 
     try {
       const res = await fetch('/api/audit', {
@@ -277,7 +337,7 @@
 </script>
 
 <div class="app-wrapper">
-  <!-- TOP MOBILE NAVBAR -->
+  <!-- TOP NAVBAR -->
   <header class="app-header">
     <div class="brand" on:click={() => navigateTo('home')}>
       <div class="brand-shield">🛡️</div>
@@ -288,7 +348,11 @@
     </div>
 
     <div class="header-actions">
-      {#if !currentUser}
+      {#if currentUser}
+        <div class="credit-pill" on:click={() => openPayment('Single Pass', 49, 1)}>
+          ⚡ {userCredits} {userCredits === 1 ? 'Credit' : 'Credits'}
+        </div>
+      {:else}
         <button class="btn-nav-quick" on:click={() => navigateTo('audit')}>Try Free</button>
       {/if}
       <button class="hamburger-btn" on:click={() => { mobileMenuOpen = !mobileMenuOpen; }} aria-label="Menu">
@@ -318,6 +382,10 @@
             <div class="drawer-user">
               <span class="dot-online"></span>
               <span class="user-email">{currentUser.email}</span>
+            </div>
+            <div class="drawer-credits-box">
+              <span>Available Audits:</span>
+              <strong>⚡ {userCredits} {userCredits === 1 ? 'Credit' : 'Credits'}</strong>
             </div>
             <button class="btn-drawer-danger" on:click={handleLogout}>Log Out</button>
           {:else}
@@ -494,16 +562,23 @@
 
               {#if !hasUnlocked}
                 <div class="audit-paywall-banner">
-                  <div class="banner-badge">💎 FREE PREVIEW</div>
-                  <div class="banner-title">5 Predatory Vulnerabilities Detected</div>
-                  <p class="banner-sub">Safe replacement clauses and negotiation emails are locked.</p>
-                  <button class="btn-cta-main full mt-10" on:click={() => openPayment('Single Pass', 49, '1 Full Contract Audit & Safe Clauses')}>
-                    Unlock Full Redline & Emails (₹49) ⚡
-                  </button>
+                  <div class="banner-badge">💎 PROTECTED REPORT</div>
+                  <div class="banner-title">5 Vulnerabilities Flagged</div>
+                  <p class="banner-sub">Counter-clauses & polite negotiation emails are hidden.</p>
+                  
+                  {#if userCredits > 0}
+                    <button class="btn-cta-main full mt-10" on:click={useCreditToUnlock}>
+                      Use 1 Credit to Unlock Full Report ⚡ ({userCredits} left)
+                    </button>
+                  {:else}
+                    <button class="btn-cta-main full mt-10" on:click={() => openPayment('Single Pass', 49, 1)}>
+                      Unlock for ₹49 (Get 1 Pass Credit) ⚡
+                    </button>
+                  {/if}
                 </div>
               {:else}
                 <div class="unlocked-badge">
-                  ✓ Full Report Unlocked (Pass Active)
+                  ✓ Full Report Unlocked
                 </div>
               {/if}
             </div>
@@ -529,7 +604,6 @@
                   <div class="body-text">{item.issue}</div>
                 </div>
 
-                <!-- PAYWALL DISPLAY -->
                 {#if hasUnlocked}
                   <div class="result-row">
                     <div class="flex-title">
@@ -561,9 +635,15 @@
                     <div class="lock-overlay">
                       <div class="lock-icon">🔒</div>
                       <div class="lock-text">Safe Counter-Clause & Client Email Locked</div>
-                      <button class="btn-unlock-cta" on:click={() => openPayment('Single Pass', 49, '1 Full Contract Audit & Safe Clauses')}>
-                        Unlock for ₹49 ⚡
-                      </button>
+                      {#if userCredits > 0}
+                        <button class="btn-unlock-cta" on:click={useCreditToUnlock}>
+                          Use 1 Credit to Unlock ⚡
+                        </button>
+                      {:else}
+                        <button class="btn-unlock-cta" on:click={() => openPayment('Single Pass', 49, 1)}>
+                          Unlock for ₹49 ⚡
+                        </button>
+                      {/if}
                     </div>
                   </div>
                 {/if}
@@ -587,7 +667,7 @@
               <h3>Free Pass</h3>
               <div class="plan-price">₹0</div>
             </div>
-            <p class="plan-subtitle">1 monthly contract risk audit</p>
+            <p class="plan-subtitle">1 contract risk audit</p>
             <ul class="plan-features">
               <li>✓ Overall Risk Score (Low/Med/High)</li>
               <li>✓ Identifies predatory traps</li>
@@ -603,15 +683,15 @@
               <h3>Single Pass</h3>
               <div class="plan-price">₹49 <span class="usd">($1.50)</span></div>
             </div>
-            <p class="plan-subtitle">1 complete audit with all amendments</p>
+            <p class="plan-subtitle">Includes 1 Full Audit Credit</p>
             <ul class="plan-features">
-              <li>✓ All vulnerability categories checked</li>
+              <li>✓ 1 Audit Credit added to your account</li>
               <li>✓ Balanced, safe counter-clauses unlocked</li>
               <li>✓ Ready-to-send polite client emails</li>
               <li>✓ 100% 7-Day Money-Back Guarantee</li>
             </ul>
-            <button class="btn-cta-main full" on:click={() => openPayment('Single Pass', 49, '1 Full Contract Audit & Safe Clauses')}>
-              Unlock Single Pass (₹49) ⚡
+            <button class="btn-cta-main full" on:click={() => openPayment('Single Pass', 49, 1)}>
+              Buy 1 Pass Credit (₹49) ⚡
             </button>
           </div>
 
@@ -620,15 +700,15 @@
               <h3>Pro Monthly</h3>
               <div class="plan-price">₹199 <span class="usd">($6.50/mo)</span></div>
             </div>
-            <p class="plan-subtitle">Unlimited peace of mind</p>
+            <p class="plan-subtitle">Includes 10 Full Audit Credits</p>
             <ul class="plan-features">
-              <li>✓ Unlimited Indian & Global contract audits</li>
+              <li>✓ 10 Audit Credits added to your account</li>
               <li>✓ Subcontractor & vendor agreement reviews</li>
               <li>✓ Priority AI pipeline speed</li>
               <li>✓ Retainer agreement templates</li>
             </ul>
-            <button class="btn-plan-outline" on:click={() => openPayment('Pro Monthly', 199, 'Unlimited Monthly Contract Audits')}>
-              Get Pro Monthly (₹199) ⚡
+            <button class="btn-plan-outline" on:click={() => openPayment('Pro Monthly', 199, 10)}>
+              Get 10 Credits (₹199) ⚡
             </button>
           </div>
         </div>
@@ -652,10 +732,10 @@
 
           {#if authMode === 'login'}
             <h2>Welcome Back</h2>
-            <p class="auth-helper">Sign in to access saved audits and custom counter-clauses.</p>
+            <p class="auth-helper">Sign in to access saved audits and account credits.</p>
           {:else if authMode === 'signup'}
             <h2>Create Free Account</h2>
-            <p class="auth-helper">Sign up to retain contract audit history safely.</p>
+            <p class="auth-helper">Sign up to retain contract audit credits safely.</p>
           {:else}
             <h2>Reset Password</h2>
             <p class="auth-helper">Enter your email for password reset instructions.</p>
@@ -701,14 +781,14 @@
     {/if}
   </div>
 
-  <!-- CLEAN UPI PAYMENT MODAL (FIXED AMOUNT + DYNAMIC QR) -->
+  <!-- CLEAN PAYMENT MODAL (NO QR CODE, ONLY LOCKED TAP-TO-PAY) -->
   {#if paymentModalOpen}
     <div class="modal-layer" on:click={() => { paymentModalOpen = false; }}>
       <div class="modal-box payment-sheet" on:click|stopPropagation>
         <div class="modal-header">
           <div>
             <h3 class="pay-title">Instant UPI Payment</h3>
-            <span class="pay-plan-badge">{selectedPlan.name} • ₹{selectedPlan.price} FIXED</span>
+            <span class="pay-plan-badge">{selectedPlan.name} • ₹{selectedPlan.price} LOCKED (+{selectedPlan.credits} Credit)</span>
           </div>
           <button class="modal-close" on:click={() => { paymentModalOpen = false; }}>✕</button>
         </div>
@@ -716,56 +796,41 @@
         {#if paymentSuccess}
           <div class="pay-success-box">
             <span class="success-icon">🎉</span>
-            <h4>Payment Confirmed!</h4>
-            <p>Your {selectedPlan.name} is unlocked. All safe counter-clauses and emails are now available!</p>
+            <h4>Payment Verified!</h4>
+            <p>+{selectedPlan.credits} Credit added to your account! You now have {userCredits} credits.</p>
           </div>
         {:else}
           <div class="pay-body">
-            <!-- 1-TAP FIXED AMOUNT UPI INTENT -->
+            <!-- 1-TAP FIXED AMOUNT UPI INTENT ONLY -->
             <a 
               class="btn-upi-intent" 
-              href="upi://pay?pa={upiId}&pn={encodeURIComponent(payeeName)}&am={selectedPlan.price}.00&cu=INR&tn=SafeClauseSinglePass&mode=02"
+              href="upi://pay?pa={upiId}&pn={encodeURIComponent(payeeName)}&am={selectedPlan.price}.00&cu=INR&tn=SafeClause-{selectedPlan.name.replace(/\s+/g,'')}&mode=02"
             >
               <span class="upi-logo">⚡</span>
-              <span>Tap to Pay ₹{selectedPlan.price} (GPay/PhonePe/Paytm)</span>
+              <span>Tap to Pay ₹{selectedPlan.price} (GPay / PhonePe / Paytm)</span>
             </a>
 
-            <div class="qr-divider"><span>OR SCAN QR CODE TO PAY EXACT ₹{selectedPlan.price}</span></div>
-
-            <!-- DYNAMIC QR CODE WITH LOCKED ₹49 -->
-            <div class="qr-container">
-              <img 
-                src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={encodeURIComponent(`upi://pay?pa=${upiId}&pn=${payeeName}&am=${selectedPlan.price}.00&cu=INR&tn=SafeClause&mode=02`)}" 
-                alt="Paytm Merchant UPI QR" 
-                class="qr-image"
-              />
-              <div class="upi-handle-display">
-                <span>Merchant UPI: <strong>{upiId}</strong></span>
-                <button class="btn-copy-upi" on:click={copyUpiId}>
-                  {copiedUpi ? '✓ Copied' : 'Copy'}
-                </button>
-              </div>
+            <div class="pay-note">
+              🔒 Amount is strictly locked at ₹{selectedPlan.price}. After payment completes in your UPI app, enter the 12-digit UTR below.
             </div>
 
             <!-- SINGLE CLEAN 12-DIGIT UTR SECTION -->
             <div class="utr-section">
               <label for="utr-input" class="input-lbl">Enter 12-Digit UPI Reference / UTR Number</label>
-              <p class="utr-tip">Enter the 12-digit transaction ID from your payment receipt to unlock.</p>
-              
               <div class="utr-row">
                 <input 
                   id="utr-input"
                   class="app-input" 
                   type="text" 
                   bind:value={utrNumber} 
-                  placeholder="e.g. 427819203841"
+                  placeholder="e.g. 627649026704"
                   maxlength="12"
                 />
                 <button class="btn-verify" on:click={submitUtrVerification} disabled={paymentSubmitting}>
                   {#if paymentSubmitting}
                     <span class="btn-spinner"></span>
                   {:else}
-                    Unlock ⚡
+                    Claim Credit ⚡
                   {/if}
                 </button>
               </div>
@@ -865,6 +930,17 @@
   .brand-sub { font-size: 0.65rem; color: #10b981; font-weight: 600; letter-spacing: 0.02em; }
 
   .header-actions { display: flex; align-items: center; gap: 8px; }
+  .credit-pill {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid #10b981;
+    color: #10b981;
+    font-size: 0.75rem;
+    font-weight: 800;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
   .btn-nav-quick {
     background: rgba(16, 185, 129, 0.15);
     border: 1px solid rgba(16, 185, 129, 0.3);
@@ -926,8 +1002,19 @@
   .drawer-item.active { background: #162035; color: #10b981; }
 
   .drawer-footer { border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px; }
-  .drawer-user { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #cbd5e1; margin-bottom: 10px; }
+  .drawer-user { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #cbd5e1; margin-bottom: 6px; }
   .dot-online { width: 8px; height: 8px; background: #10b981; border-radius: 50%; }
+  .drawer-credits-box {
+    display: flex;
+    justify-content: space-between;
+    background: #111a2d;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-bottom: 12px;
+  }
+  .drawer-credits-box strong { color: #10b981; }
 
   .btn-drawer-primary {
     width: 100%;
@@ -1109,7 +1196,7 @@
   .panel-title { font-size: 1.1rem; margin: 0 0 6px; font-weight: 800; }
   .panel-desc { font-size: 0.82rem; color: #cbd5e1; margin: 0; line-height: 1.4; }
 
-  /* PAYWALL SUMMARY BANNER */
+  /* PAYWALL BANNER */
   .audit-paywall-banner {
     margin-top: 14px;
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(56, 189, 248, 0.12));
@@ -1283,55 +1370,28 @@
     background: #10b981;
     color: #000;
     font-weight: 800;
-    font-size: 0.85rem;
-    padding: 12px;
+    font-size: 0.88rem;
+    padding: 14px;
     border-radius: 8px;
     text-decoration: none;
     margin-top: 14px;
     text-align: center;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
   }
   .upi-logo { font-size: 1.1rem; }
 
-  .qr-divider {
-    text-align: center;
-    margin: 14px 0 10px;
-    font-size: 0.68rem;
-    color: #64748b;
-    font-weight: 800;
-    letter-spacing: 0.05em;
-  }
-
-  .qr-container {
-    text-align: center;
-    background: #07090e;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    padding: 12px;
-  }
-  .qr-image { width: 160px; height: 160px; border-radius: 6px; background: #fff; padding: 6px; }
-  .upi-handle-display {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-size: 0.75rem;
+  .pay-note {
+    font-size: 0.72rem;
     color: #94a3b8;
-    margin-top: 8px;
-  }
-  .upi-handle-display strong { color: #38bdf8; font-family: monospace; }
-  .btn-copy-upi {
-    background: #162035;
-    border: 1px solid #233554;
-    color: #10b981;
-    font-size: 0.68rem;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 4px;
-    cursor: pointer;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin: 14px 0 12px;
+    line-height: 1.4;
   }
 
-  .utr-section { margin-top: 14px; }
-  .utr-tip { font-size: 0.7rem; color: #64748b; margin: 2px 0 8px; }
+  .utr-section { margin-top: 6px; }
   .utr-row { display: flex; gap: 8px; }
   .btn-verify {
     background: #10b981;
@@ -1339,9 +1399,10 @@
     border: none;
     border-radius: 8px;
     font-weight: 800;
-    font-size: 0.85rem;
-    padding: 0 16px;
+    font-size: 0.82rem;
+    padding: 0 14px;
     cursor: pointer;
+    white-space: nowrap;
   }
 
   .pay-success-box { text-align: center; padding: 24px 8px; }
