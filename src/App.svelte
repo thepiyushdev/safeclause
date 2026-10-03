@@ -184,28 +184,44 @@
     }
   }
 
-  function handleFileUpload(e) {
+  async function handleFileUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
 
     contractTitle = file.name.replace(/\.[^/.]+$/, "");
-    const reader = new FileReader();
 
-    if (file.type === "application/pdf") {
-      reader.onload = function() {
-        const typedarray = new Uint8Array(this.result);
-        let text = "";
-        for (let i = 0; i < typedarray.length; i++) {
-          const char = String.fromCharCode(typedarray[i]);
-          if (/[\x20-\x7E\n\r\t]/.test(char)) text += char;
+    if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+      try {
+        if (!window.pdfjsLib) {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement("script");
+            s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+            s.onload = () => {
+              window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+              resolve();
+            };
+            s.onerror = reject;
+            document.head.appendChild(s);
+          });
         }
-        contractText = text.replace(/[^a-zA-Z0-9.,;: \n\-\(\)]/g, ' ').replace(/\s+/g, ' ').slice(0, 15000);
-      };
-      reader.readAsArrayBuffer(file);
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let extracted = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          extracted += textContent.items.map(item => item.str).join(" ") + "\n\n";
+        }
+        contractText = extracted.trim();
+      } catch (err) {
+        errorMessage = "Could not extract text from this PDF. Please copy-paste the text directly.";
+      }
     } else {
+      const reader = new FileReader();
       reader.onload = (event) => { contractText = event.target.result; };
       reader.readAsText(file);
     }
+  }
   }
 
   function copyText(text, index, type) {
