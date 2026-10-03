@@ -3,11 +3,11 @@
   import { supabase } from './lib/supabase.js';
 
   // Navigation State
-  let currentPage = 'home'; // 'home' | 'audit' | 'pricing' | 'auth'
+  let currentPage = 'home';
   let mobileMenuOpen = false;
-  let legalModal = null; // 'privacy' | 'terms' | 'refund' | null
+  let legalModal = null;
 
-  // Paywall & Access State (Default false for Free users)
+  // Paywall & Access State
   let hasUnlocked = false;
 
   // Official Paytm for Business Merchant UPI Configuration
@@ -18,8 +18,6 @@
   let paymentModalOpen = false;
   let selectedPlan = { name: 'Single Pass', price: 49, desc: '1 Full Contract Audit & Safe Clauses' };
   let utrNumber = '';
-  let paymentScreenshot = null;
-  let uploadingScreenshot = false;
   let paymentSubmitting = false;
   let paymentSuccess = false;
   let paymentError = '';
@@ -27,7 +25,7 @@
 
   // User Auth State
   let currentUser = null;
-  let authMode = 'login'; // 'login' | 'signup' | 'forgot'
+  let authMode = 'login';
   let authEmail = '';
   let authPassword = '';
   let authLoading = false;
@@ -35,7 +33,7 @@
   let authError = '';
 
   // Audit Tool State
-  let jurisdiction = 'INDIA'; // 'INDIA' | 'GLOBAL'
+  let jurisdiction = 'INDIA';
   let contractTitle = '';
   let contractText = '';
   let loading = false;
@@ -80,42 +78,27 @@
   async function submitUtrVerification() {
     const cleanUtr = utrNumber.trim();
     if (!/^\d{12}$/.test(cleanUtr)) {
-      paymentError = "Please enter the exact 12-digit numerical UPI Reference / UTR Number.";
-      return;
-    }
-
-    if (!paymentScreenshot) {
-      paymentError = "Please attach the payment screenshot / receipt as proof.";
+      paymentError = 'Please enter the exact 12-digit numerical UPI Reference / UTR Number.';
       return;
     }
 
     paymentSubmitting = true;
-    paymentError = "";
-
-    let screenshotUrl = "";
-    try {
-      uploadingScreenshot = true;
-      const fileExt = paymentScreenshot.name.split(".").pop();
-      const fileName = `${cleanUtr}_${Date.now()}.${fileExt}`;
-      
-      const { data: uploadData, error: uploadErr } = await supabase.storage
-        .from("payment-proofs")
-        .upload(fileName, paymentScreenshot);
-
-      if (!uploadErr && uploadData) {
-        const { data: publicUrlData } = supabase.storage
-          .from("payment-proofs")
-          .getPublicUrl(fileName);
-        screenshotUrl = publicUrlData?.publicUrl || "";
-      }
-    } catch (e) {
-      console.warn("Screenshot upload warning:", e);
-    } finally {
-      uploadingScreenshot = false;
-    }
     paymentError = '';
 
     try {
+      // Check duplicate UTR in payments table
+      const { data: existing } = await supabase
+        .from('payments')
+        .select('id')
+        .eq('payment_id', cleanUtr)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        paymentError = 'This UTR number has already been used. Please enter your fresh transaction ID.';
+        paymentSubmitting = false;
+        return;
+      }
+
       if (currentUser) {
         await supabase.from('payments').insert({
           user_id: currentUser.id,
@@ -123,7 +106,7 @@
           currency: 'INR',
           plan_type: selectedPlan.name.toLowerCase().includes('single') ? 'single_pass' : 'pro_monthly',
           payment_id: cleanUtr,
-          payment_status: 'verified_pending_review'
+          payment_status: 'verified_complete'
         });
       }
 
@@ -132,14 +115,14 @@
       setTimeout(() => {
         paymentModalOpen = false;
         navigateTo('audit');
-      }, 2000);
+      }, 1800);
     } catch (err) {
       hasUnlocked = true;
       paymentSuccess = true;
       setTimeout(() => {
         paymentModalOpen = false;
         navigateTo('audit');
-      }, 2000);
+      }, 1800);
     } finally {
       paymentSubmitting = false;
     }
@@ -157,9 +140,9 @@
           password: authPassword
         });
         if (error) throw error;
-        authMessage = "Account created successfully! Redirecting to Auditor...";
         currentUser = data.user;
-        setTimeout(() => { navigateTo('audit'); }, 800);
+        authMessage = "Account created successfully!";
+        setTimeout(() => { navigateTo('audit'); }, 600);
       } else if (authMode === 'login') {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: authEmail,
@@ -172,7 +155,7 @@
       } else if (authMode === 'forgot') {
         const { error } = await supabase.auth.resetPasswordForEmail(authEmail);
         if (error) throw error;
-        authMessage = "Password reset email sent! Check your inbox.";
+        authMessage = "Password reset instructions sent!";
       }
     } catch (err) {
       authError = err.message || "Authentication failed.";
@@ -370,7 +353,6 @@
         </div>
       </section>
 
-      <!-- PROBLEMS -->
       <section class="section-block">
         <div class="block-eyebrow">THE 3 BIGGEST TRAPS</div>
         <h2 class="block-title">How Bad Contracts Trap Freelancers</h2>
@@ -402,7 +384,6 @@
         </div>
       </section>
 
-      <!-- COMPARISON -->
       <section class="section-block">
         <div class="block-eyebrow">THE ALTERNATIVES</div>
         <h2 class="block-title">Why Generic AI & Lawyers Fall Short</h2>
@@ -548,7 +529,7 @@
                   <div class="body-text">{item.issue}</div>
                 </div>
 
-                <!-- PAYWALL LOGIC: SHOW UNLOCKED OR FROSTED BLUR -->
+                <!-- PAYWALL DISPLAY -->
                 {#if hasUnlocked}
                   <div class="result-row">
                     <div class="flex-title">
@@ -720,14 +701,14 @@
     {/if}
   </div>
 
-  <!-- UPI PAYMENT MODAL -->
+  <!-- CLEAN UPI PAYMENT MODAL (FIXED AMOUNT + DYNAMIC QR) -->
   {#if paymentModalOpen}
     <div class="modal-layer" on:click={() => { paymentModalOpen = false; }}>
       <div class="modal-box payment-sheet" on:click|stopPropagation>
         <div class="modal-header">
           <div>
             <h3 class="pay-title">Instant UPI Payment</h3>
-            <span class="pay-plan-badge">{selectedPlan.name} • ₹{selectedPlan.price}</span>
+            <span class="pay-plan-badge">{selectedPlan.name} • ₹{selectedPlan.price} FIXED</span>
           </div>
           <button class="modal-close" on:click={() => { paymentModalOpen = false; }}>✕</button>
         </div>
@@ -735,26 +716,26 @@
         {#if paymentSuccess}
           <div class="pay-success-box">
             <span class="success-icon">🎉</span>
-            <h4>UTR Received & Verified!</h4>
+            <h4>Payment Confirmed!</h4>
             <p>Your {selectedPlan.name} is unlocked. All safe counter-clauses and emails are now available!</p>
           </div>
         {:else}
           <div class="pay-body">
-            <!-- 1-TAP UPI APP INTENT -->
+            <!-- 1-TAP FIXED AMOUNT UPI INTENT -->
             <a 
               class="btn-upi-intent" 
-              href="upi://pay?pa={upiId}&pn={encodeURIComponent(payeeName)}&am={selectedPlan.price}&cu=INR&tn=SafeClause-{selectedPlan.name.replace(/\s+/g,'')}"
+              href="upi://pay?pa={upiId}&pn={encodeURIComponent(payeeName)}&am={selectedPlan.price}.00&cu=INR&tn=SafeClauseSinglePass&mode=02"
             >
               <span class="upi-logo">⚡</span>
-              <span>Pay ₹{selectedPlan.price} via UPI App (GPay/PhonePe/Paytm)</span>
+              <span>Tap to Pay ₹{selectedPlan.price} (GPay/PhonePe/Paytm)</span>
             </a>
 
-            <div class="qr-divider"><span>OR SCAN MERCHANT QR CODE</span></div>
+            <div class="qr-divider"><span>OR SCAN QR CODE TO PAY EXACT ₹{selectedPlan.price}</span></div>
 
-            <!-- DYNAMIC QR CODE FOR PAYTM MERCHANT -->
+            <!-- DYNAMIC QR CODE WITH LOCKED ₹49 -->
             <div class="qr-container">
               <img 
-                src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={encodeURIComponent(`upi://pay?pa=${upiId}&pn=${payeeName}&am=${selectedPlan.price}&cu=INR&tn=SafeClause`)}" 
+                src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={encodeURIComponent(`upi://pay?pa=${upiId}&pn=${payeeName}&am=${selectedPlan.price}.00&cu=INR&tn=SafeClause&mode=02`)}" 
                 alt="Paytm Merchant UPI QR" 
                 class="qr-image"
               />
@@ -766,9 +747,11 @@
               </div>
             </div>
 
-            <!-- UTR VERIFICATION -->
+            <!-- SINGLE CLEAN 12-DIGIT UTR SECTION -->
             <div class="utr-section">
-              <label for="utr-input" class="input-lbl">1. Enter 12-Digit UPI UTR Number</label>
+              <label for="utr-input" class="input-lbl">Enter 12-Digit UPI Reference / UTR Number</label>
+              <p class="utr-tip">Enter the 12-digit transaction ID from your payment receipt to unlock.</p>
+              
               <div class="utr-row">
                 <input 
                   id="utr-input"
@@ -777,25 +760,6 @@
                   bind:value={utrNumber} 
                   placeholder="e.g. 427819203841"
                   maxlength="12"
-                />
-              </div>
-
-              <label class="input-lbl mt-10">2. Attach Payment Screenshot (Receipt)</label>
-              <input 
-                class="app-input mt-4" 
-                type="file" 
-                accept="image/*"
-                on:change={(e) => { paymentScreenshot = e.target.files[0]; }}
-              />
-
-              <div class="utr-row mt-12">
-                <input 
-                  id="utr-input"
-                  class="app-input" 
-                  type="text" 
-                  bind:value={utrNumber} 
-                  placeholder="e.g. 427819203841"
-                  maxlength="16"
                 />
                 <button class="btn-verify" on:click={submitUtrVerification} disabled={paymentSubmitting}>
                   {#if paymentSubmitting}
@@ -1344,7 +1308,7 @@
     border-radius: 10px;
     padding: 12px;
   }
-  .qr-image { width: 150px; height: 150px; border-radius: 6px; background: #fff; padding: 4px; }
+  .qr-image { width: 160px; height: 160px; border-radius: 6px; background: #fff; padding: 6px; }
   .upi-handle-display {
     display: flex;
     align-items: center;
