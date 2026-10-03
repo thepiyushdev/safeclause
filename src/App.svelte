@@ -11,17 +11,19 @@
   let userCredits = 0;
   let hasUnlocked = false;
 
-  // Official Paytm for Business Merchant UPI Configuration
+  // Merchant Configuration
   const upiId = 'paytm.s2b5x4t@pty';
   const payeeName = 'Ashok ray';
 
   // Payment Modal State
   let paymentModalOpen = false;
   let selectedPlan = { name: 'Single Pass', price: 49, credits: 1 };
-  let utrNumber = '';
-  let paymentSubmitting = false;
+  let screenshotBase64 = null;
+  let screenshotPreview = null;
+  let verifyingPayment = false;
   let paymentSuccess = false;
   let paymentError = '';
+  let verifiedUtr = '';
 
   // User Auth State
   let currentUser = null;
@@ -60,27 +62,26 @@
         }
       });
     } catch (e) {
-      console.warn("Supabase auth offline:", e.message);
+      console.warn("Supabase offline:", e.message);
     }
   });
 
   async function loadUserCredits(userId, email) {
     try {
-      let { data, error } = await supabase
+      let { data } = await supabase
         .from('profiles')
         .select('credits')
         .eq('id', userId)
         .single();
 
       if (!data) {
-        // Initial profile creation with 0 credits
         await supabase.from('profiles').upsert({ id: userId, email: email, credits: 0 });
         userCredits = 0;
       } else {
         userCredits = data.credits || 0;
       }
     } catch (e) {
-      console.warn("Error fetching credits:", e.message);
+      console.warn("Credits error:", e.message);
     }
   }
 
@@ -96,54 +97,80 @@
       return;
     }
     selectedPlan = { name: planName, price: price, credits: creditsToAdd };
-    utrNumber = '';
+    screenshotBase64 = null;
+    screenshotPreview = null;
     paymentSuccess = false;
     paymentError = '';
+    verifiedUtr = '';
     paymentModalOpen = true;
   }
 
-  async function submitUtrVerification() {
-    const cleanUtr = utrNumber.trim();
-    if (!/^\d{12}$/.test(cleanUtr)) {
-      paymentError = 'Please enter the exact 12-digit numerical UPI Reference / UTR Number.';
+  // Handle Screenshot Upload & Compression
+  function handleScreenshotSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    paymentError = '';
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Compress image to max 900px width for fast AI processing
+        const canvas = document.createElement('canvas');
+        const maxDim = 900;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height && width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        screenshotBase64 = canvas.toDataURL('image/jpeg', 0.85);
+        screenshotPreview = screenshotBase64;
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function submitAiVerification() {
+    if (!screenshotBase64) {
+      paymentError = 'Please upload your UPI payment screenshot.';
       return;
     }
 
-    paymentSubmitting = true;
+    verifyingPayment = true;
     paymentError = '';
 
     try {
-      // 1. Check duplicate UTR
-      const { data: existing } = await supabase
-        .from('payments')
-        .select('id')
-        .eq('payment_id', cleanUtr)
-        .limit(1);
-
-      if (existing && existing.length > 0) {
-        paymentError = 'This UTR has already been redeemed. Please enter a fresh transaction ID.';
-        paymentSubmitting = false;
-        return;
-      }
-
-      // 2. Insert Payment Record
-      await supabase.from('payments').insert({
-        user_id: currentUser.id,
-        amount: selectedPlan.price,
-        currency: 'INR',
-        plan_type: selectedPlan.name.toLowerCase().includes('single') ? 'single_pass' : 'pro_monthly',
-        payment_id: cleanUtr,
-        payment_status: 'verified_complete'
+      const res = await fetch('/api/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: screenshotBase64,
+          expectedPrice: selectedPlan.price,
+          planName: selectedPlan.name,
+          userId: currentUser?.id
+        })
       });
 
-      // 3. Add Credits to User Profile
-      const updatedCredits = userCredits + selectedPlan.credits;
-      await supabase
-        .from('profiles')
-        .update({ credits: updatedCredits })
-        .eq('id', currentUser.id);
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || 'Receipt verification failed.');
+      }
 
-      userCredits = updatedCredits;
+      userCredits = json.credits;
+      verifiedUtr = json.utr;
       paymentSuccess = true;
 
       setTimeout(() => {
@@ -151,15 +178,11 @@
         if (currentPage === 'audit' && auditResult && !hasUnlocked) {
           useCreditToUnlock();
         }
-      }, 1600);
+      }, 2000);
     } catch (err) {
-      userCredits += selectedPlan.credits;
-      paymentSuccess = true;
-      setTimeout(() => {
-        paymentModalOpen = false;
-      }, 1600);
+      paymentError = err.message || 'AI failed to verify the screenshot. Make sure it is clear.';
     } finally {
-      paymentSubmitting = false;
+      verifyingPayment = false;
     }
   }
 
@@ -239,7 +262,7 @@
     loading = true;
     errorMessage = '';
     auditResult = null;
-    hasUnlocked = false; // Reset unlock state for fresh contract
+    hasUnlocked = false;
 
     try {
       const res = await fetch('/api/audit', {
@@ -337,7 +360,7 @@
 </script>
 
 <div class="app-wrapper">
-  <!-- TOP NAVBAR -->
+  <!-- NAVBAR -->
   <header class="app-header">
     <div class="brand" on:click={() => navigateTo('home')}>
       <div class="brand-shield">🛡️</div>
@@ -361,7 +384,7 @@
     </div>
   </header>
 
-  <!-- MOBILE SLIDE-DOWN DRAWER -->
+  <!-- DRAWER -->
   {#if mobileMenuOpen}
     <div class="drawer-backdrop" on:click={() => { mobileMenuOpen = false; }}>
       <nav class="mobile-drawer" on:click|stopPropagation>
@@ -400,7 +423,6 @@
 
   <!-- MAIN VIEWPORT -->
   <div class="viewport">
-    <!-- PAGE 1: HOME -->
     {#if currentPage === 'home'}
       <section class="hero-card">
         <div class="badge-pill">⚖️ Calibrated for Indian & Global Law</div>
@@ -452,33 +474,12 @@
         </div>
       </section>
 
-      <section class="section-block">
-        <div class="block-eyebrow">THE ALTERNATIVES</div>
-        <h2 class="block-title">Why Generic AI & Lawyers Fall Short</h2>
-
-        <div class="compare-card">
-          <div class="comp-item positive">
-            <div class="comp-head">🛡️ SafeClause</div>
-            <p>30-second turnaround, ₹49 micro-pass, calibrated to Indian Contract Act & MSMED rules, outputs exact counter-clauses and ready-to-send polite emails.</p>
-          </div>
-          <div class="comp-item">
-            <div class="comp-head">⚖️ Traditional Law Firms</div>
-            <p>Takes 3 to 5 business days, costs ₹3,000–₹10,000 per review, and provides dense legalese that creates friction with clients.</p>
-          </div>
-          <div class="comp-item">
-            <div class="comp-head">🤖 Generic ChatGPT</div>
-            <p>Misses statutory Indian protections like Section 27, hallucinates US legal jurisdiction, and offers vague summaries instead of redlines.</p>
-          </div>
-        </div>
-      </section>
-
       <section class="card cta-box">
         <h3>Have a contract waiting to be signed?</h3>
         <p>Don't gamble your hard work on unfair terms.</p>
         <button class="btn-cta-main" on:click={() => navigateTo('audit')}>Launch Free Auditor →</button>
       </section>
 
-    <!-- PAGE 2: AUDITOR TOOL -->
     {:else if currentPage === 'audit'}
       <section class="tool-view">
         <div class="view-header">
@@ -487,16 +488,10 @@
         </div>
 
         <div class="jur-container">
-          <button 
-            class="jur-tab {jurisdiction === 'INDIA' ? 'active' : ''}" 
-            on:click={() => { jurisdiction = 'INDIA'; }}
-          >
+          <button class="jur-tab {jurisdiction === 'INDIA' ? 'active' : ''}" on:click={() => { jurisdiction = 'INDIA'; }}>
             🇮🇳 India (Act 1872 / MSMED)
           </button>
-          <button 
-            class="jur-tab {jurisdiction === 'GLOBAL' ? 'active' : ''}" 
-            on:click={() => { jurisdiction = 'GLOBAL'; }}
-          >
+          <button class="jur-tab {jurisdiction === 'GLOBAL' ? 'active' : ''}" on:click={() => { jurisdiction = 'GLOBAL'; }}>
             🌐 US / UK / Remote Global
           </button>
         </div>
@@ -511,13 +506,7 @@
             </div>
           </div>
 
-          <input 
-            id="c-title"
-            class="app-input" 
-            type="text" 
-            bind:value={contractTitle} 
-            placeholder="e.g. Master Services Agreement"
-          />
+          <input id="c-title" class="app-input" type="text" bind:value={contractTitle} placeholder="e.g. Master Services Agreement" />
 
           <div class="file-picker">
             <label class="file-btn">
@@ -527,13 +516,7 @@
           </div>
 
           <label for="c-text" class="input-lbl mt-12">Contract Text / Clauses</label>
-          <textarea 
-            id="c-text"
-            class="app-textarea" 
-            rows="6" 
-            bind:value={contractText} 
-            placeholder="Paste payment terms, non-compete clauses, or entire contract clauses..."
-          ></textarea>
+          <textarea id="c-text" class="app-textarea" rows="6" bind:value={contractText} placeholder="Paste payment terms, non-compete clauses, or entire contract clauses..."></textarea>
 
           <button class="btn-cta-main full mt-14" on:click={handleAudit} disabled={loading}>
             {#if loading}
@@ -564,11 +547,11 @@
                 <div class="audit-paywall-banner">
                   <div class="banner-badge">💎 PROTECTED REPORT</div>
                   <div class="banner-title">5 Vulnerabilities Flagged</div>
-                  <p class="banner-sub">Counter-clauses & polite negotiation emails are hidden.</p>
+                  <p class="banner-sub">Counter-clauses & polite negotiation emails are locked.</p>
                   
                   {#if userCredits > 0}
                     <button class="btn-cta-main full mt-10" on:click={useCreditToUnlock}>
-                      Use 1 Credit to Unlock Full Report ⚡ ({userCredits} left)
+                      Use 1 Credit to Unlock Full Report ⚡ ({userCredits} available)
                     </button>
                   {:else}
                     <button class="btn-cta-main full mt-10" on:click={() => openPayment('Single Pass', 49, 1)}>
@@ -577,15 +560,11 @@
                   {/if}
                 </div>
               {:else}
-                <div class="unlocked-badge">
-                  ✓ Full Report Unlocked
-                </div>
+                <div class="unlocked-badge">✓ Full Report Unlocked</div>
               {/if}
             </div>
 
-            <div class="flagged-title">
-              ⚠️ Flagged Clauses ({auditResult.flagged_clauses.length})
-            </div>
+            <div class="flagged-title">⚠️ Flagged Clauses ({auditResult.flagged_clauses.length})</div>
 
             {#each auditResult.flagged_clauses as item, idx}
               <div class="card result-card {item.risk_level.toLowerCase()}">
@@ -628,21 +607,15 @@
                   <div class="locked-container">
                     <div class="blurred-preview">
                       <div class="field-title success">Safe Counter-Clause:</div>
-                      <div class="snippet-box">Invoices shall be paid strictly within fifteen (15) calendar days of receipt. Liability shall be capped at the total amount...</div>
-                      <div class="field-title info mt-10">Polite Client Negotiation Email:</div>
-                      <div class="email-box">We appreciate the milestone structure, but Net-90 terms present substantial financial risk for our operations...</div>
+                      <div class="snippet-box">Invoices shall be paid strictly within fifteen (15) calendar days...</div>
                     </div>
                     <div class="lock-overlay">
                       <div class="lock-icon">🔒</div>
                       <div class="lock-text">Safe Counter-Clause & Client Email Locked</div>
                       {#if userCredits > 0}
-                        <button class="btn-unlock-cta" on:click={useCreditToUnlock}>
-                          Use 1 Credit to Unlock ⚡
-                        </button>
+                        <button class="btn-unlock-cta" on:click={useCreditToUnlock}>Use 1 Credit to Unlock ⚡</button>
                       {:else}
-                        <button class="btn-unlock-cta" on:click={() => openPayment('Single Pass', 49, 1)}>
-                          Unlock for ₹49 ⚡
-                        </button>
+                        <button class="btn-unlock-cta" on:click={() => openPayment('Single Pass', 49, 1)}>Unlock for ₹49 ⚡</button>
                       {/if}
                     </div>
                   </div>
@@ -653,42 +626,26 @@
         {/if}
       </section>
 
-    <!-- PAGE 3: PRICING -->
     {:else if currentPage === 'pricing'}
       <section class="pricing-view">
         <div class="view-header">
           <h2>Predictable, Fair Pricing</h2>
-          <p>Instant UPI checkout via Paytm Merchant — Zero cards or KYC barriers.</p>
+          <p>Instant UPI checkout via Paytm Merchant — Verified by Vision AI.</p>
         </div>
 
         <div class="pricing-stack">
-          <div class="card plan-card">
-            <div class="plan-header">
-              <h3>Free Pass</h3>
-              <div class="plan-price">₹0</div>
-            </div>
-            <p class="plan-subtitle">1 contract risk audit</p>
-            <ul class="plan-features">
-              <li>✓ Overall Risk Score (Low/Med/High)</li>
-              <li>✓ Identifies predatory traps</li>
-              <li>✕ Safe counter-clauses locked</li>
-              <li>✕ Negotiation emails locked</li>
-            </ul>
-            <button class="btn-plan-outline" on:click={() => navigateTo('audit')}>Use Free</button>
-          </div>
-
           <div class="card plan-card featured">
             <div class="plan-ribbon">RECOMMENDED</div>
             <div class="plan-header">
               <h3>Single Pass</h3>
-              <div class="plan-price">₹49 <span class="usd">($1.50)</span></div>
+              <div class="plan-price">₹49</div>
             </div>
             <p class="plan-subtitle">Includes 1 Full Audit Credit</p>
             <ul class="plan-features">
               <li>✓ 1 Audit Credit added to your account</li>
               <li>✓ Balanced, safe counter-clauses unlocked</li>
               <li>✓ Ready-to-send polite client emails</li>
-              <li>✓ 100% 7-Day Money-Back Guarantee</li>
+              <li>✓ AI Instant Verification</li>
             </ul>
             <button class="btn-cta-main full" on:click={() => openPayment('Single Pass', 49, 1)}>
               Buy 1 Pass Credit (₹49) ⚡
@@ -698,14 +655,13 @@
           <div class="card plan-card">
             <div class="plan-header">
               <h3>Pro Monthly</h3>
-              <div class="plan-price">₹199 <span class="usd">($6.50/mo)</span></div>
+              <div class="plan-price">₹199</div>
             </div>
             <p class="plan-subtitle">Includes 10 Full Audit Credits</p>
             <ul class="plan-features">
               <li>✓ 10 Audit Credits added to your account</li>
               <li>✓ Subcontractor & vendor agreement reviews</li>
               <li>✓ Priority AI pipeline speed</li>
-              <li>✓ Retainer agreement templates</li>
             </ul>
             <button class="btn-plan-outline" on:click={() => openPayment('Pro Monthly', 199, 10)}>
               Get 10 Credits (₹199) ⚡
@@ -714,28 +670,21 @@
         </div>
       </section>
 
-    <!-- PAGE 4: AUTH -->
     {:else if currentPage === 'auth'}
       <section class="auth-view">
         <div class="card auth-container">
           <div class="auth-toggle">
-            <button class="toggle-btn {authMode === 'login' ? 'active' : ''}" on:click={() => { authMode = 'login'; authError = ''; authMessage = ''; }}>
-              Sign In
-            </button>
-            <button class="toggle-btn {authMode === 'signup' ? 'active' : ''}" on:click={() => { authMode = 'signup'; authError = ''; authMessage = ''; }}>
-              Create Account
-            </button>
-            <button class="toggle-btn {authMode === 'forgot' ? 'active' : ''}" on:click={() => { authMode = 'forgot'; authError = ''; authMessage = ''; }}>
-              Forgot?
-            </button>
+            <button class="toggle-btn {authMode === 'login' ? 'active' : ''}" on:click={() => { authMode = 'login'; authError = ''; authMessage = ''; }}>Sign In</button>
+            <button class="toggle-btn {authMode === 'signup' ? 'active' : ''}" on:click={() => { authMode = 'signup'; authError = ''; authMessage = ''; }}>Create Account</button>
+            <button class="toggle-btn {authMode === 'forgot' ? 'active' : ''}" on:click={() => { authMode = 'forgot'; authError = ''; authMessage = ''; }}>Forgot?</button>
           </div>
 
           {#if authMode === 'login'}
             <h2>Welcome Back</h2>
-            <p class="auth-helper">Sign in to access saved audits and account credits.</p>
+            <p class="auth-helper">Sign in to access your audit credits.</p>
           {:else if authMode === 'signup'}
             <h2>Create Free Account</h2>
-            <p class="auth-helper">Sign up to retain contract audit credits safely.</p>
+            <p class="auth-helper">Sign up to retain contract audit history safely.</p>
           {:else}
             <h2>Reset Password</h2>
             <p class="auth-helper">Enter your email for password reset instructions.</p>
@@ -749,9 +698,7 @@
               <div class="pwd-head">
                 <label for="a-pwd" class="input-lbl mt-12">Password</label>
                 {#if authMode === 'login'}
-                  <button type="button" class="forgot-link" on:click={() => { authMode = 'forgot'; authError = ''; authMessage = ''; }}>
-                    Forgot password?
-                  </button>
+                  <button type="button" class="forgot-link" on:click={() => { authMode = 'forgot'; authError = ''; authMessage = ''; }}>Forgot password?</button>
                 {/if}
               </div>
               <input id="a-pwd" class="app-input" type="password" bind:value={authPassword} placeholder="••••••••" required />
@@ -759,7 +706,7 @@
 
             <button class="btn-cta-main full mt-16" type="submit" disabled={authLoading}>
               {#if authLoading}
-                <span class="btn-spinner"></span> Connecting to Supabase...
+                <span class="btn-spinner"></span> Connecting...
               {:else if authMode === 'login'}
                 Sign In
               {:else if authMode === 'signup'}
@@ -781,14 +728,14 @@
     {/if}
   </div>
 
-  <!-- CLEAN PAYMENT MODAL (NO QR CODE, ONLY LOCKED TAP-TO-PAY) -->
+  <!-- AI VISION PAYMENT MODAL (NO UTR TYPING) -->
   {#if paymentModalOpen}
     <div class="modal-layer" on:click={() => { paymentModalOpen = false; }}>
       <div class="modal-box payment-sheet" on:click|stopPropagation>
         <div class="modal-header">
           <div>
             <h3 class="pay-title">Instant UPI Payment</h3>
-            <span class="pay-plan-badge">{selectedPlan.name} • ₹{selectedPlan.price} LOCKED (+{selectedPlan.credits} Credit)</span>
+            <span class="pay-plan-badge">{selectedPlan.name} • ₹{selectedPlan.price} FIXED (+{selectedPlan.credits} Credit)</span>
           </div>
           <button class="modal-close" on:click={() => { paymentModalOpen = false; }}>✕</button>
         </div>
@@ -796,44 +743,47 @@
         {#if paymentSuccess}
           <div class="pay-success-box">
             <span class="success-icon">🎉</span>
-            <h4>Payment Verified!</h4>
-            <p>+{selectedPlan.credits} Credit added to your account! You now have {userCredits} credits.</p>
+            <h4>Receipt Verified by AI!</h4>
+            <p><strong>UTR: {verifiedUtr}</strong> verified. +{selectedPlan.credits} Credit added to your account!</p>
           </div>
         {:else}
           <div class="pay-body">
-            <!-- 1-TAP FIXED AMOUNT UPI INTENT ONLY -->
+            <!-- 1. Tap To Pay -->
             <a 
               class="btn-upi-intent" 
               href="upi://pay?pa={upiId}&pn={encodeURIComponent(payeeName)}&am={selectedPlan.price}.00&cu=INR&tn=SafeClause-{selectedPlan.name.replace(/\s+/g,'')}&mode=02"
             >
               <span class="upi-logo">⚡</span>
-              <span>Tap to Pay ₹{selectedPlan.price} (GPay / PhonePe / Paytm)</span>
+              <span>1. Tap to Pay ₹{selectedPlan.price} (GPay/PhonePe/Paytm)</span>
             </a>
 
-            <div class="pay-note">
-              🔒 Amount is strictly locked at ₹{selectedPlan.price}. After payment completes in your UPI app, enter the 12-digit UTR below.
-            </div>
+            <!-- 2. Screenshot Upload with AI -->
+            <div class="ai-verify-section">
+              <label class="input-lbl mt-14">2. Upload Payment Success Screenshot</label>
+              <p class="utr-tip">Take a screenshot of the payment receipt and upload it. OpenRouter Vision AI will verify it instantly.</p>
 
-            <!-- SINGLE CLEAN 12-DIGIT UTR SECTION -->
-            <div class="utr-section">
-              <label for="utr-input" class="input-lbl">Enter 12-Digit UPI Reference / UTR Number</label>
-              <div class="utr-row">
-                <input 
-                  id="utr-input"
-                  class="app-input" 
-                  type="text" 
-                  bind:value={utrNumber} 
-                  placeholder="e.g. 627649026704"
-                  maxlength="12"
-                />
-                <button class="btn-verify" on:click={submitUtrVerification} disabled={paymentSubmitting}>
-                  {#if paymentSubmitting}
-                    <span class="btn-spinner"></span>
-                  {:else}
-                    Claim Credit ⚡
-                  {/if}
-                </button>
-              </div>
+              <label class="upload-dropzone">
+                {#if screenshotPreview}
+                  <img src={screenshotPreview} alt="Receipt Preview" class="receipt-thumb" />
+                  <span class="change-txt">Tap to change image</span>
+                {:else}
+                  <span class="drop-icon">📸</span>
+                  <span class="drop-txt">Tap to select payment screenshot</span>
+                {/if}
+                <input type="file" accept="image/*" on:change={handleScreenshotSelect} />
+              </label>
+
+              <button 
+                class="btn-cta-main full mt-14" 
+                on:click={submitAiVerification} 
+                disabled={verifyingPayment || !screenshotBase64}
+              >
+                {#if verifyingPayment}
+                  <span class="btn-spinner"></span> AI Scanning Receipt & Bank UTR...
+                {:else}
+                  AI Verify & Unlock Credit ⚡
+                {/if}
+              </button>
 
               {#if paymentError}
                 <div class="toast error mt-10">{paymentError}</div>
@@ -854,32 +804,9 @@
       <span class="sep">•</span>
       <button on:click={() => { legalModal = 'refund'; }}>Refunds</button>
     </div>
-    <div class="footer-note">
-      SafeClause is an AI document auditing tool. Outputs do not constitute formal legal counsel under the Advocates Act.
-    </div>
+    <div class="footer-note">SafeClause is an AI document auditing tool. Outputs do not constitute formal legal counsel.</div>
     <div class="footer-copy">© 2026 SafeClause. Built for independent creators.</div>
   </footer>
-
-  <!-- LEGAL MODAL -->
-  {#if legalModal}
-    <div class="modal-layer" on:click={() => { legalModal = null; }}>
-      <div class="modal-box" on:click|stopPropagation>
-        <div class="modal-header">
-          <h3>{legalModal === 'privacy' ? 'Privacy Policy' : legalModal === 'terms' ? 'Terms of Service' : 'Refund Policy'}</h3>
-          <button class="modal-close" on:click={() => { legalModal = null; }}>✕</button>
-        </div>
-        <div class="modal-text">
-          {#if legalModal === 'privacy'}
-            <p><strong>Privacy First:</strong> Contracts uploaded or pasted are processed in-memory for the duration of the analysis request and never retained on permanent disks or used to train foundational AI models.</p>
-          {:else if legalModal === 'terms'}
-            <p><strong>Legal Terms:</strong> SafeClause provides automated comparison against public statutory norms (e.g. Indian Contract Act, 1872). It does not create an advocate-client relationship.</p>
-          {:else if legalModal === 'refund'}
-            <p><strong>Refund Guarantee:</strong> We offer a 100% 7-day refund if a paid scan encounters an API disruption or processing error. Contact refunds@safeclause.in.</p>
-          {/if}
-        </div>
-      </div>
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -889,7 +816,6 @@
     background-color: #07090e;
     color: #f1f5f9;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
   }
 
@@ -909,7 +835,6 @@
     box-sizing: border-box;
   }
 
-  /* NAVBAR */
   .app-header {
     display: flex;
     justify-content: space-between;
@@ -926,8 +851,8 @@
   .brand { display: flex; align-items: center; gap: 10px; cursor: pointer; }
   .brand-shield { font-size: 1.4rem; line-height: 1; }
   .brand-info { display: flex; flex-direction: column; }
-  .brand-title { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; color: #ffffff; }
-  .brand-sub { font-size: 0.65rem; color: #10b981; font-weight: 600; letter-spacing: 0.02em; }
+  .brand-title { font-size: 1.05rem; font-weight: 800; color: #ffffff; }
+  .brand-sub { font-size: 0.65rem; color: #10b981; font-weight: 600; }
 
   .header-actions { display: flex; align-items: center; gap: 8px; }
   .credit-pill {
@@ -966,7 +891,6 @@
     justify-content: center;
   }
 
-  /* DRAWER */
   .drawer-backdrop {
     position: fixed;
     top: 61px; left: 0; right: 0; bottom: 0;
@@ -1040,7 +964,6 @@
     cursor: pointer;
   }
 
-  /* CARDS */
   .card {
     background: #0e1422;
     border: 1px solid rgba(255, 255, 255, 0.07);
@@ -1062,15 +985,7 @@
     margin-bottom: 14px;
   }
 
-  .hero-heading {
-    font-size: 1.65rem;
-    font-weight: 800;
-    line-height: 1.25;
-    letter-spacing: -0.03em;
-    margin: 0 0 12px;
-    color: #ffffff;
-  }
-
+  .hero-heading { font-size: 1.65rem; font-weight: 800; line-height: 1.25; margin: 0 0 12px; color: #ffffff; }
   .hero-description { font-size: 0.9rem; color: #94a3b8; line-height: 1.5; margin: 0 0 20px; }
   .hero-actions { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 
@@ -1086,13 +1001,13 @@
     box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
   }
   .btn-cta-main.full { width: 100%; }
+  .btn-cta-main:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .trust-bullets { display: flex; gap: 10px; font-size: 0.7rem; color: #64748b; }
 
-  /* SECTION BLOCKS */
   .section-block { padding-top: 32px; }
   .block-eyebrow { font-size: 0.68rem; font-weight: 800; color: #10b981; letter-spacing: 0.08em; margin-bottom: 4px; }
-  .block-title { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 14px; }
+  .block-title { font-size: 1.25rem; font-weight: 800; margin: 0 0 14px; }
 
   .cards-list { display: flex; flex-direction: column; gap: 10px; }
   .danger-card {
@@ -1107,24 +1022,10 @@
   .danger-body h3 { font-size: 0.9rem; font-weight: 700; margin: 0 0 4px; }
   .danger-body p { font-size: 0.8rem; color: #94a3b8; margin: 0; line-height: 1.4; }
 
-  /* COMPARISON */
-  .compare-card { display: flex; flex-direction: column; gap: 10px; }
-  .comp-item {
-    background: #0e1422;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 12px;
-    padding: 14px;
-  }
-  .comp-item.positive { background: #0f1c2b; border-color: rgba(16, 185, 129, 0.4); }
-  .comp-head { font-size: 0.9rem; font-weight: 800; margin-bottom: 4px; }
-  .comp-item p { font-size: 0.8rem; color: #94a3b8; margin: 0; line-height: 1.4; }
-  .comp-item.positive p { color: #cbd5e1; }
-
   .cta-box { margin-top: 32px; text-align: center; border-color: rgba(16, 185, 129, 0.3); }
   .cta-box h3 { margin: 0 0 6px; font-size: 1.15rem; }
   .cta-box p { font-size: 0.85rem; color: #94a3b8; margin: 0 0 16px; }
 
-  /* AUDITOR */
   .tool-view { padding-top: 8px; }
   .view-header h2 { font-size: 1.3rem; font-weight: 800; margin: 0 0 4px; }
   .view-header p { font-size: 0.8rem; color: #94a3b8; margin: 0 0 14px; }
@@ -1184,7 +1085,6 @@
   .toast.error { background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; }
   .toast.success { background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #6ee7b7; }
 
-  /* AUDIT RESULTS */
   .results-wrapper { margin-top: 20px; }
   .summary-panel { background: #111a2e; border-color: rgba(56, 189, 248, 0.3); }
   .panel-meta { display: flex; justify-content: space-between; margin-bottom: 8px; }
@@ -1196,7 +1096,6 @@
   .panel-title { font-size: 1.1rem; margin: 0 0 6px; font-weight: 800; }
   .panel-desc { font-size: 0.82rem; color: #cbd5e1; margin: 0; line-height: 1.4; }
 
-  /* PAYWALL BANNER */
   .audit-paywall-banner {
     margin-top: 14px;
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(56, 189, 248, 0.12));
@@ -1256,7 +1155,6 @@
     white-space: pre-wrap;
   }
 
-  /* FROSTED BLUR LOCKED CONTAINER */
   .locked-container {
     position: relative;
     margin-top: 10px;
@@ -1298,7 +1196,6 @@
     box-shadow: 0 2px 10px rgba(16, 185, 129, 0.4);
   }
 
-  /* PRICING */
   .pricing-view { padding-top: 8px; }
   .pricing-stack { display: flex; flex-direction: column; gap: 12px; }
   .plan-card { position: relative; }
@@ -1316,7 +1213,6 @@
   .plan-header { display: flex; justify-content: space-between; align-items: baseline; }
   .plan-header h3 { margin: 0; font-size: 1.05rem; }
   .plan-price { font-size: 1.5rem; font-weight: 800; }
-  .plan-price .usd { font-size: 0.8rem; color: #94a3b8; font-weight: 500; }
   .plan-subtitle { font-size: 0.75rem; color: #94a3b8; margin: 2px 0 12px; }
   .plan-features { list-style: none; padding: 0; margin: 0 0 14px; display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; }
   .btn-plan-outline {
@@ -1331,7 +1227,6 @@
     cursor: pointer;
   }
 
-  /* AUTH */
   .auth-view { padding-top: 16px; }
   .auth-container { max-width: 380px; margin: 0 auto; }
   .auth-toggle { display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 14px; }
@@ -1352,7 +1247,7 @@
   .pwd-head { display: flex; justify-content: space-between; align-items: baseline; }
   .forgot-link { background: transparent; border: none; color: #38bdf8; font-size: 0.72rem; font-weight: 600; cursor: pointer; padding: 0; }
 
-  /* PAYMENT SHEET */
+  /* PAYMENT SHEET & DROPZONE */
   .payment-sheet {
     max-width: 420px;
     background: #0d1322;
@@ -1371,46 +1266,39 @@
     color: #000;
     font-weight: 800;
     font-size: 0.88rem;
-    padding: 14px;
+    padding: 13px;
     border-radius: 8px;
     text-decoration: none;
     margin-top: 14px;
     text-align: center;
-    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
   }
   .upi-logo { font-size: 1.1rem; }
 
-  .pay-note {
-    font-size: 0.72rem;
-    color: #94a3b8;
-    background: rgba(16, 185, 129, 0.08);
-    border: 1px solid rgba(16, 185, 129, 0.2);
-    border-radius: 6px;
-    padding: 8px 10px;
-    margin: 14px 0 12px;
-    line-height: 1.4;
-  }
-
-  .utr-section { margin-top: 6px; }
-  .utr-row { display: flex; gap: 8px; }
-  .btn-verify {
-    background: #10b981;
-    color: #000;
-    border: none;
-    border-radius: 8px;
-    font-weight: 800;
-    font-size: 0.82rem;
-    padding: 0 14px;
+  .upload-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed rgba(16, 185, 129, 0.4);
+    background: #07090e;
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 8px;
     cursor: pointer;
-    white-space: nowrap;
+    text-align: center;
   }
+  .upload-dropzone input { display: none; }
+  .drop-icon { font-size: 1.6rem; margin-bottom: 4px; }
+  .drop-txt { font-size: 0.8rem; color: #94a3b8; font-weight: 600; }
+  .receipt-thumb { max-height: 140px; border-radius: 6px; object-fit: contain; margin-bottom: 6px; }
+  .change-txt { font-size: 0.72rem; color: #10b981; font-weight: 700; }
+  .utr-tip { font-size: 0.72rem; color: #64748b; margin: 2px 0 8px; }
 
   .pay-success-box { text-align: center; padding: 24px 8px; }
   .success-icon { font-size: 2.2rem; display: block; margin-bottom: 8px; }
   .pay-success-box h4 { margin: 0 0 6px; font-size: 1.2rem; color: #10b981; }
   .pay-success-box p { margin: 0; font-size: 0.82rem; color: #cbd5e1; line-height: 1.4; }
 
-  /* FOOTER */
   .app-footer {
     padding: 24px 16px;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -1423,7 +1311,6 @@
   .footer-note { font-size: 0.68rem; color: #475569; max-width: 440px; margin: 0 auto 6px; line-height: 1.4; }
   .footer-copy { font-size: 0.65rem; color: #334155; }
 
-  /* SPINNER */
   .btn-spinner {
     display: inline-block;
     width: 14px;
@@ -1437,7 +1324,6 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* MODAL */
   .modal-layer {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -1459,5 +1345,4 @@
   .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
   .modal-header h3 { margin: 0; font-size: 1rem; }
   .modal-close { background: transparent; border: none; color: #94a3b8; font-size: 1.1rem; cursor: pointer; }
-  .modal-text p { font-size: 0.82rem; color: #cbd5e1; line-height: 1.45; margin: 0; }
 </style>
