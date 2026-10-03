@@ -18,6 +18,8 @@
   let paymentModalOpen = false;
   let selectedPlan = { name: 'Single Pass', price: 49, desc: '1 Full Contract Audit & Safe Clauses' };
   let utrNumber = '';
+  let paymentScreenshot = null;
+  let uploadingScreenshot = false;
   let paymentSubmitting = false;
   let paymentSuccess = false;
   let paymentError = '';
@@ -77,12 +79,40 @@
 
   async function submitUtrVerification() {
     const cleanUtr = utrNumber.trim();
-    if (!cleanUtr || cleanUtr.length < 8) {
-      paymentError = 'Please enter a valid 12-digit UPI Reference / UTR Number.';
+    if (!/^\d{12}$/.test(cleanUtr)) {
+      paymentError = "Please enter the exact 12-digit numerical UPI Reference / UTR Number.";
+      return;
+    }
+
+    if (!paymentScreenshot) {
+      paymentError = "Please attach the payment screenshot / receipt as proof.";
       return;
     }
 
     paymentSubmitting = true;
+    paymentError = "";
+
+    let screenshotUrl = "";
+    try {
+      uploadingScreenshot = true;
+      const fileExt = paymentScreenshot.name.split(".").pop();
+      const fileName = `${cleanUtr}_${Date.now()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from("payment-proofs")
+        .upload(fileName, paymentScreenshot);
+
+      if (!uploadErr && uploadData) {
+        const { data: publicUrlData } = supabase.storage
+          .from("payment-proofs")
+          .getPublicUrl(fileName);
+        screenshotUrl = publicUrlData?.publicUrl || "";
+      }
+    } catch (e) {
+      console.warn("Screenshot upload warning:", e);
+    } finally {
+      uploadingScreenshot = false;
+    }
     paymentError = '';
 
     try {
@@ -738,10 +768,27 @@
 
             <!-- UTR VERIFICATION -->
             <div class="utr-section">
-              <label for="utr-input" class="input-lbl">Enter 12-Digit UPI Reference / UTR Number</label>
-              <p class="utr-tip">After paying, copy the 12-digit transaction ID from your UPI app receipt.</p>
-              
+              <label for="utr-input" class="input-lbl">1. Enter 12-Digit UPI UTR Number</label>
               <div class="utr-row">
+                <input 
+                  id="utr-input"
+                  class="app-input" 
+                  type="text" 
+                  bind:value={utrNumber} 
+                  placeholder="e.g. 427819203841"
+                  maxlength="12"
+                />
+              </div>
+
+              <label class="input-lbl mt-10">2. Attach Payment Screenshot (Receipt)</label>
+              <input 
+                class="app-input mt-4" 
+                type="file" 
+                accept="image/*"
+                on:change={(e) => { paymentScreenshot = e.target.files[0]; }}
+              />
+
+              <div class="utr-row mt-12">
                 <input 
                   id="utr-input"
                   class="app-input" 
