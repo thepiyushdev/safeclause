@@ -7,6 +7,9 @@
   let mobileMenuOpen = false;
   let legalModal = null; // 'privacy' | 'terms' | 'refund' | null
 
+  // Paywall & Access State (Default false for Free users)
+  let hasUnlocked = false;
+
   // Official Paytm for Business Merchant UPI Configuration
   const upiId = 'paytm.s2b5x4t@pty';
   const payeeName = 'Ashok ray';
@@ -94,17 +97,19 @@
         });
       }
 
+      hasUnlocked = true;
       paymentSuccess = true;
       setTimeout(() => {
         paymentModalOpen = false;
         navigateTo('audit');
-      }, 2200);
+      }, 2000);
     } catch (err) {
+      hasUnlocked = true;
       paymentSuccess = true;
       setTimeout(() => {
         paymentModalOpen = false;
         navigateTo('audit');
-      }, 2200);
+      }, 2000);
     } finally {
       paymentSubmitting = false;
     }
@@ -149,6 +154,7 @@
   async function handleLogout() {
     await supabase.auth.signOut();
     currentUser = null;
+    hasUnlocked = false;
     navigateTo('home');
   }
 
@@ -474,6 +480,21 @@
               </div>
               <h3 class="panel-title">{auditResult.contract_title || 'Audit Report'}</h3>
               <p class="panel-desc">{auditResult.summary}</p>
+
+              {#if !hasUnlocked}
+                <div class="audit-paywall-banner">
+                  <div class="banner-badge">💎 FREE PREVIEW</div>
+                  <div class="banner-title">5 Predatory Vulnerabilities Detected</div>
+                  <p class="banner-sub">Safe replacement clauses and negotiation emails are locked.</p>
+                  <button class="btn-cta-main full mt-10" on:click={() => openPayment('Single Pass', 49, '1 Full Contract Audit & Safe Clauses')}>
+                    Unlock Full Redline & Emails (₹49) ⚡
+                  </button>
+                </div>
+              {:else}
+                <div class="unlocked-badge">
+                  ✓ Full Report Unlocked (Pass Active)
+                </div>
+              {/if}
             </div>
 
             <div class="flagged-title">
@@ -497,25 +518,44 @@
                   <div class="body-text">{item.issue}</div>
                 </div>
 
-                <div class="result-row">
-                  <div class="flex-title">
-                    <span class="field-title success">Safe Counter-Clause:</span>
-                    <button class="btn-pill" on:click={() => copyText(item.safe_counter_clause, idx, 'clause')}>
-                      {copiedIndex === idx ? '✓ Copied' : 'Copy Clause'}
-                    </button>
+                <!-- PAYWALL LOGIC: SHOW UNLOCKED OR FROSTED BLUR -->
+                {#if hasUnlocked}
+                  <div class="result-row">
+                    <div class="flex-title">
+                      <span class="field-title success">Safe Counter-Clause:</span>
+                      <button class="btn-pill" on:click={() => copyText(item.safe_counter_clause, idx, 'clause')}>
+                        {copiedIndex === idx ? '✓ Copied' : 'Copy Clause'}
+                      </button>
+                    </div>
+                    <div class="snippet-box">{item.safe_counter_clause}</div>
                   </div>
-                  <div class="snippet-box">{item.safe_counter_clause}</div>
-                </div>
 
-                <div class="result-row">
-                  <div class="flex-title">
-                    <span class="field-title info">Polite Client Negotiation Email:</span>
-                    <button class="btn-pill ghost" on:click={() => copyText(item.negotiation_note, idx, 'email')}>
-                      {copiedEmailIndex === idx ? '✓ Copied' : 'Copy Email'}
-                    </button>
+                  <div class="result-row">
+                    <div class="flex-title">
+                      <span class="field-title info">Polite Client Negotiation Email:</span>
+                      <button class="btn-pill ghost" on:click={() => copyText(item.negotiation_note, idx, 'email')}>
+                        {copiedEmailIndex === idx ? '✓ Copied' : 'Copy Email'}
+                      </button>
+                    </div>
+                    <div class="email-box">{item.negotiation_note}</div>
                   </div>
-                  <div class="email-box">{item.negotiation_note}</div>
-                </div>
+                {:else}
+                  <div class="locked-container">
+                    <div class="blurred-preview">
+                      <div class="field-title success">Safe Counter-Clause:</div>
+                      <div class="snippet-box">Invoices shall be paid strictly within fifteen (15) calendar days of receipt. Liability shall be capped at the total amount...</div>
+                      <div class="field-title info mt-10">Polite Client Negotiation Email:</div>
+                      <div class="email-box">We appreciate the milestone structure, but Net-90 terms present substantial financial risk for our operations...</div>
+                    </div>
+                    <div class="lock-overlay">
+                      <div class="lock-icon">🔒</div>
+                      <div class="lock-text">Safe Counter-Clause & Client Email Locked</div>
+                      <button class="btn-unlock-cta" on:click={() => openPayment('Single Pass', 49, '1 Full Contract Audit & Safe Clauses')}>
+                        Unlock for ₹49 ⚡
+                      </button>
+                    </div>
+                  </div>
+                {/if}
               </div>
             {/each}
           </div>
@@ -539,7 +579,7 @@
             <p class="plan-subtitle">1 monthly contract risk audit</p>
             <ul class="plan-features">
               <li>✓ Overall Risk Score (Low/Med/High)</li>
-              <li>✓ Identifies top 2 predatory clauses</li>
+              <li>✓ Identifies predatory traps</li>
               <li>✕ Safe counter-clauses locked</li>
               <li>✕ Negotiation emails locked</li>
             </ul>
@@ -554,8 +594,8 @@
             </div>
             <p class="plan-subtitle">1 complete audit with all amendments</p>
             <ul class="plan-features">
-              <li>✓ All 5 vulnerability categories checked</li>
-              <li>✓ Balanced, safe counter-clauses included</li>
+              <li>✓ All vulnerability categories checked</li>
+              <li>✓ Balanced, safe counter-clauses unlocked</li>
               <li>✓ Ready-to-send polite client emails</li>
               <li>✓ 100% 7-Day Money-Back Guarantee</li>
             </ul>
@@ -666,7 +706,7 @@
           <div class="pay-success-box">
             <span class="success-icon">🎉</span>
             <h4>UTR Received & Verified!</h4>
-            <p>Your {selectedPlan.name} is unlocked. Redirecting you to the contract auditor...</p>
+            <p>Your {selectedPlan.name} is unlocked. All safe counter-clauses and emails are now available!</p>
           </div>
         {:else}
           <div class="pay-body">
@@ -1058,6 +1098,20 @@
   .panel-title { font-size: 1.1rem; margin: 0 0 6px; font-weight: 800; }
   .panel-desc { font-size: 0.82rem; color: #cbd5e1; margin: 0; line-height: 1.4; }
 
+  /* PAYWALL SUMMARY BANNER */
+  .audit-paywall-banner {
+    margin-top: 14px;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(56, 189, 248, 0.12));
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+  .banner-badge { font-size: 0.68rem; font-weight: 800; color: #fbbf24; margin-bottom: 2px; }
+  .banner-title { font-size: 0.95rem; font-weight: 800; color: #ffffff; }
+  .banner-sub { font-size: 0.75rem; color: #94a3b8; margin: 2px 0 0; }
+  .unlocked-badge { margin-top: 10px; font-size: 0.78rem; font-weight: 700; color: #34d399; }
+
   .flagged-title { font-size: 1.05rem; font-weight: 800; margin: 20px 0 10px; }
   .result-card { border-left: 4px solid #ef4444; margin-bottom: 12px; }
   .result-card.medium { border-left-color: #f59e0b; }
@@ -1102,6 +1156,48 @@
     font-size: 0.78rem;
     margin-top: 4px;
     white-space: pre-wrap;
+  }
+
+  /* FROSTED BLUR LOCKED CONTAINER */
+  .locked-container {
+    position: relative;
+    margin-top: 10px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #07090e;
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+  }
+  .blurred-preview {
+    filter: blur(4.5px);
+    opacity: 0.3;
+    user-select: none;
+    pointer-events: none;
+    padding: 10px;
+  }
+  .lock-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(7, 9, 14, 0.78);
+    backdrop-filter: blur(2px);
+    padding: 12px;
+    text-align: center;
+  }
+  .lock-icon { font-size: 1.2rem; margin-bottom: 2px; }
+  .lock-text { font-size: 0.78rem; color: #e2e8f0; font-weight: 700; margin-bottom: 8px; }
+  .btn-unlock-cta {
+    background: #10b981;
+    color: #000;
+    font-weight: 800;
+    font-size: 0.78rem;
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(16, 185, 129, 0.4);
   }
 
   /* PRICING */
