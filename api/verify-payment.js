@@ -165,7 +165,7 @@ Return ONLY a clean JSON object with no markdown formatting:
 
     await supabase
       .from('profiles')
-      .upsert({ id: userId, credits: newCredits });
+      .upsert({ id: userId, credits: newCredits }, { onConflict: "id" });
 
     return res.status(200).json({
       success: true,
