@@ -4,3 +4,9 @@ dist
 .env.local
 test-*.js
 .DS_Store
+.env
+.env.local
+.env.*
+.env
+.env.local
+.env.*

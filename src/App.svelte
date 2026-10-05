@@ -889,7 +889,7 @@
                     </button>
                   </div>
                   <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid #334155; border-radius: 8px; padding: 10px; color: #94a3b8; font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word;">
-                    {item.polite_client_negotiation_email || item.negotiation_email || item.email || item.politeClientNegotiationEmail || 'Hi [Client Name],\n\nRegarding this section, I would like to propose a standard commercial alignment.\n\nBest regards,\n[Your Name]'}
+                    {item.polite_client_negotiation_email || item.negotiation_email || item.email || item.politeClientNegotiationEmail || 'Hi [Client Name],\n\nRegarding this section, I would like to propose an adjusted wording.\n\nBest regards,\n[Your Name]'}
                   </div>
                 </div>
               </div>
