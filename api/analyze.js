@@ -16,8 +16,8 @@ export default async function handler(req, res) {
       category: "PAYMENT TERMS",
       severity: "HIGH RISK",
       risk: "HIGH RISK",
-      finePrint: "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
       problematicFinePrint: "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
+      finePrint: "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
       whyItHurts: "The Net-90 payment term combined with an indefinite waiver of payment if the client delays sign-off creates a cash-flow trap and leaves the freelancer unpaid for work already performed.",
       why_it_hurts: "The Net-90 payment term combined with an indefinite waiver of payment if the client delays sign-off creates a cash-flow trap and leaves the freelancer unpaid for work already performed."
     },
@@ -25,8 +25,8 @@ export default async function handler(req, res) {
       category: "INDEMNITY & LIABILITY",
       severity: "HIGH RISK",
       risk: "HIGH RISK",
-      finePrint: "Developer agrees to defend, indemnify, and hold harmless the Client against all liabilities, claims, damages without monetary limitation.",
       problematicFinePrint: "Developer agrees to defend, indemnify, and hold harmless the Client against all liabilities, claims, damages without monetary limitation.",
+      finePrint: "Developer agrees to defend, indemnify, and hold harmless the Client against all liabilities, claims, damages without monetary limitation.",
       whyItHurts: "Exposes the freelancer to unlimited personal liability for client damages without an aggregate liability cap equal to the project fee.",
       why_it_hurts: "Exposes the freelancer to unlimited personal liability for client damages without an aggregate liability cap equal to the project fee."
     },
@@ -34,8 +34,8 @@ export default async function handler(req, res) {
       category: "RESTRICTIVE COVENANTS",
       severity: "HIGH RISK",
       risk: "HIGH RISK",
+      problematicFinePrint: "Developer shall not engage with, advise, or provide similar services to any competitor of Client for 24-36 months post termination.",
       finePrint: "Developer shall not engage with, advise, or provide similar services to any competitor of Client for 24-36 months post termination.",
-      problematicFinePrint: "Developer agrees not to engage in any business or perform freelance services for competitors worldwide for 36 months post-termination.",
       whyItHurts: "Completely void under Section 27 of the Indian Contract Act, 1872 as restraint of trade, but used by clients to intimidate freelancers.",
       why_it_hurts: "Completely void under Section 27 of the Indian Contract Act, 1872 as restraint of trade, but used by clients to intimidate freelancers."
     },
@@ -43,8 +43,8 @@ export default async function handler(req, res) {
       category: "IP ASSIGNMENT",
       severity: "MEDIUM RISK",
       risk: "MEDIUM RISK",
-      finePrint: "All work product and intellectual property rights transfer immediately upon creation regardless of payment receipt status.",
       problematicFinePrint: "All work product and intellectual property rights transfer immediately upon creation regardless of payment receipt status.",
+      finePrint: "All work product and intellectual property rights transfer immediately upon creation regardless of payment receipt status.",
       whyItHurts: "IP should only transfer after 100% of the invoice balance has been cleared into your bank account.",
       why_it_hurts: "IP should only transfer after 100% of the invoice balance has been cleared into your bank account."
     }
@@ -65,9 +65,9 @@ export default async function handler(req, res) {
   if (geminiKey) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-      const prompt = `Analyze this contract under ${jurisdiction === 'INDIA' ? 'Indian Law (Indian Contract Act 1872, Sec 27)' : 'Global Law'}.
+      const prompt = `Analyze this contract under ${jurisdiction === 'INDIA' ? 'Indian Law (Indian Contract Act 1872, Sec 27)' : 'Global Law'}. Spot Net-90, indemnity, non-competes.
 Return strictly raw JSON:
 {
   "summary": "2 sentence executive risk summary",
@@ -128,7 +128,7 @@ Text: ${cleanText}`;
         }
       }
     } catch (e) {
-      // Fast fallback to deterministic result
+      // Instant failover
     }
   }
 
@@ -137,4 +137,4 @@ Text: ${cleanText}`;
     data: defaultResult,
     ...defaultResult
   });
-}
+};
