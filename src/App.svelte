@@ -851,7 +851,7 @@
 
                 <div class="fine-print-title" style="color: #ef4444; font-weight: 700; margin-top: 10px; font-size: 0.85rem;">Problematic Fine Print:</div>
                 <div class="fine-print-text" style="color: #94a3b8; font-style: italic; margin-top: 4px; line-height: 1.4;">
-                  "{item.problematic_fine_print || item.fine_print || item.quote || item.clause || item.problematicFinePrint || item.finePrint || 'Problematic terms identified in this agreement section.'}"
+                  "{item.problematic_fine_print || item.fine_print || item.quote || item.clause || item.problematicFinePrint || 'Problematic terms identified in this agreement section.'}"
                 </div>
 
                 <div class="why-hurts-title" style="color: #eab308; font-weight: 700; margin-top: 12px; font-size: 0.85rem;">Why It Hurts You:</div>
@@ -889,7 +889,7 @@
                     </button>
                   </div>
                   <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid #334155; border-radius: 8px; padding: 10px; color: #94a3b8; font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word;">
-                    {item.polite_client_negotiation_email || item.negotiation_email || item.email || item.politeClientNegotiationEmail || 'Hi [Client Name],\n\nRegarding this section, I would like to propose an adjusted wording.\n\nBest regards,\n[Your Name]'}
+                    {item.polite_client_negotiation_email || item.negotiation_email || item.email || item.politeClientNegotiationEmail || 'Hi [Client Name],\n\nRegarding this section, I would like to propose a standard commercial alignment.\n\nBest regards,\n[Your Name]'}
                   </div>
                 </div>
               </div>
