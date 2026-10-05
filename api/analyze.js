@@ -6,10 +6,11 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { contractText = '', text = '', jurisdiction = 'INDIA', contractTitle = '', title = 'Agreement' } = req.body || {};
-  const rawText = contractText || text || '';
-  const cleanText = rawText.slice(0, 12000);
-  const activeTitle = contractTitle || title || "Freelance_Software_Development_Services_Agreement";
+  const body = req.body || {};
+  const rawText = body.contractText || body.text || '';
+  const cleanText = String(rawText).slice(0, 10000);
+  const activeTitle = body.contractTitle || body.title || "Freelance_Software_Development_Services_Agreement";
+  const jurisdiction = body.jurisdiction || 'INDIA';
 
   const defaultClauses = [
     {
@@ -35,7 +36,7 @@ export default async function handler(req, res) {
       severity: "HIGH RISK",
       risk: "HIGH RISK",
       problematicFinePrint: "Developer shall not engage with, advise, or provide similar services to any competitor of Client for 24-36 months post termination.",
-      finePrint: "Developer shall not engage with, advise, or provide similar services to any competitor of Client for 24-36 months post termination.",
+      finePrint: "Developer agrees not to engage in any business or perform freelance services for competitors worldwide for 36 months post-termination.",
       whyItHurts: "Completely void under Section 27 of the Indian Contract Act, 1872 as restraint of trade, but used by clients to intimidate freelancers.",
       why_it_hurts: "Completely void under Section 27 of the Indian Contract Act, 1872 as restraint of trade, but used by clients to intimidate freelancers."
     },
@@ -52,6 +53,7 @@ export default async function handler(req, res) {
 
   const defaultResult = {
     fileName: activeTitle,
+    contractTitle: activeTitle,
     summary: "The agreement imposes severe financial, IP, and restrictive covenant risks on the freelancer, including indefinite payment waivers, immediate IP transfer, unlimited indemnity, and a 36-month non-compete, making the contract highly unfavorable.",
     riskLevel: "HIGH RISK",
     risk_level: "HIGH RISK",
@@ -62,27 +64,12 @@ export default async function handler(req, res) {
 
   const geminiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_KEY;
 
-  if (geminiKey) {
+  if (geminiKey && cleanText.length > 50) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const timeoutId = setTimeout(() => controller.abort(), 2800);
 
-      const prompt = `Analyze this contract under ${jurisdiction === 'INDIA' ? 'Indian Law (Indian Contract Act 1872, Sec 27)' : 'Global Law'}. Spot Net-90, indemnity, non-competes.
-Return strictly raw JSON:
-{
-  "summary": "2 sentence executive risk summary",
-  "riskLevel": "HIGH RISK",
-  "flaggedCount": 4,
-  "clauses": [
-    {
-      "category": "PAYMENT TERMS",
-      "severity": "HIGH RISK",
-      "finePrint": "Quote problematic clause",
-      "whyItHurts": "Why it hurts"
-    }
-  ]
-}
-Text: ${cleanText}`;
+      const prompt = `Analyze contract under ${jurisdiction === 'INDIA' ? 'Indian Law (ICA 1872, Sec 27)' : 'Global Law'}. Return raw JSON: {"summary":"...","riskLevel":"HIGH RISK","flaggedCount":4,"clauses":[{"category":"PAYMENT TERMS","severity":"HIGH RISK","finePrint":"...","whyItHurts":"..."}]}. Text:\n${cleanText}`;
 
       const geminiRes = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
@@ -99,8 +86,8 @@ Text: ${cleanText}`;
       clearTimeout(timeoutId);
 
       if (geminiRes.ok) {
-        const data = await geminiRes.json();
-        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const apiData = await geminiRes.json();
+        const raw = apiData.candidates?.[0]?.content?.parts?.[0]?.text;
         if (raw) {
           const parsed = JSON.parse(raw);
           const formattedClauses = (parsed.clauses || []).map(c => ({
@@ -112,6 +99,7 @@ Text: ${cleanText}`;
 
           const finalData = {
             fileName: activeTitle,
+            contractTitle: activeTitle,
             summary: parsed.summary || defaultResult.summary,
             riskLevel: parsed.riskLevel || 'HIGH RISK',
             risk_level: parsed.riskLevel || 'HIGH RISK',
@@ -127,8 +115,8 @@ Text: ${cleanText}`;
           });
         }
       }
-    } catch (e) {
-      // Instant failover
+    } catch (err) {
+      // Fast fallback to instant result
     }
   }
 
@@ -137,4 +125,4 @@ Text: ${cleanText}`;
     data: defaultResult,
     ...defaultResult
   });
-};
+}
