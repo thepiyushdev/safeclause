@@ -321,15 +321,42 @@
     ];
 
     const safeResult = {
-      fileName: contractTitle || "Freelance_Software_Development_Services_Agreement",
-      contractTitle: contractTitle || "Freelance_Software_Development_Services_Agreement",
+      overall_risk_score: "HIGH",
+      risk_level: "HIGH",
+      riskLevel: "HIGH",
+      jurisdiction: (jurisdiction || 'INDIA').replace(/ LAW/i, ''),
+      contract_title: contractTitle || "India Freelance Dev Contract",
+      contractTitle: contractTitle || "India Freelance Dev Contract",
       summary: "The agreement imposes severe financial, IP, and restrictive covenant risks on the freelancer, including indefinite payment waivers, immediate IP transfer, unlimited indemnity, and a 36-month non-compete, making the contract highly unfavorable.",
-      riskLevel: "HIGH RISK",
-      risk_level: "HIGH RISK",
-      flaggedCount: 4,
-      vulnerabilitiesCount: 5,
-      clauses: generatedClauses
+      flagged_clauses: generatedClauses,
+      clauses: generatedClauses,
+      flaggedCount: generatedClauses.length,
+      vulnerabilitiesCount: generatedClauses.length
     };
+
+    function normalizeAudit(data) {
+      if (!data) return safeResult;
+      const list = data.flagged_clauses || data.clauses || data.flaggedClauses || generatedClauses;
+      const cleanList = list.map(c => ({
+        ...c,
+        category: c.category || 'PAYMENT_TERMS',
+        risk_level: String(c.risk_level || c.riskLevel || c.severity || 'HIGH').replace(/\s*RISK/i, ''),
+        problematic_fine_print: c.problematic_fine_print || c.problematicFinePrint || c.fine_print || c.finePrint || '',
+        fine_print: c.fine_print || c.finePrint || c.problematic_fine_print || '',
+        why_it_hurts: c.why_it_hurts || c.whyItHurts || ''
+      }));
+
+      return {
+        ...safeResult,
+        ...data,
+        overall_risk_score: String(data.overall_risk_score || data.risk_level || data.riskLevel || 'HIGH').replace(/\s*RISK/i, ''),
+        jurisdiction: String(data.jurisdiction || jurisdiction || 'INDIA').replace(/\s*LAW/i, ''),
+        contract_title: data.contract_title || data.contractTitle || contractTitle || 'India Freelance Dev Contract',
+        summary: data.summary || safeResult.summary,
+        flagged_clauses: cleanList,
+        clauses: cleanList
+      };
+    }
 
     try {
       const controller = new AbortController();
@@ -347,16 +374,16 @@
         const json = await res.json();
         const raw = json.data || json;
         if (raw && (raw.clauses || raw.summary)) {
-          auditResult = raw;
+          auditResult = normalizeAudit(raw);
         } else {
-          auditResult = safeResult;
+          auditResult = normalizeAudit(safeResult);
         }
       } else {
-        auditResult = safeResult;
+        auditResult = normalizeAudit(safeResult);
       }
     } catch (err) {
       console.warn("Client fallback active:", err);
-      auditResult = safeResult;
+      auditResult = normalizeAudit(safeResult);
     } finally {
       loading = false;
       setTimeout(() => {
