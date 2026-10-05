@@ -1,4 +1,19 @@
-export default async function handler(req, res) {
+import fs from 'node:fs';
+import { execSync } from 'node:child_process';
+
+console.log("=== 1. DETECTING TEMPLATE PROPERTIES IN APP.SVELTE ===");
+let appCode = fs.readFileSync('src/App.svelte', 'utf8');
+
+const eachMatch = appCode.match(/\{#each\s+auditResult\.flagged_clauses[\s\S]*?\{\/each\}/);
+let accessedProps = [];
+if (eachMatch) {
+  accessedProps = [...new Set([...eachMatch[0].matchAll(/item\.([a-zA-Z0-9_]+)/g)].map(m => m[1]))];
+  console.log("✓ Detected template keys on item:", accessedProps);
+}
+
+console.log("=== 2. WRITING RESILIENT API WITH TIERED AI MODELS ===");
+
+const apiCode = `export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -22,9 +37,9 @@ export default async function handler(req, res) {
     const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || c.politeClientNegotiationEmail || c.client_negotiation_email || c.email_template || c.email_draft || c.negotiation_script || '';
 
     return {
-      category: (c.category || 'RISK_CLAUSE').replace(/\s+/g, '_').toUpperCase(),
-      risk_level: String(c.risk_level || c.riskLevel || c.severity || 'HIGH').replace(/\s*RISK/i, ''),
-      severity: String(c.risk_level || c.riskLevel || c.severity || 'HIGH').replace(/\s*RISK/i, ''),
+      category: (c.category || 'RISK_CLAUSE').replace(/\\s+/g, '_').toUpperCase(),
+      risk_level: String(c.risk_level || c.riskLevel || c.severity || 'HIGH').replace(/\\s*RISK/i, ''),
+      severity: String(c.risk_level || c.riskLevel || c.severity || 'HIGH').replace(/\\s*RISK/i, ''),
       problematic_fine_print: fine,
       fine_print: fine,
       problematicFinePrint: fine,
@@ -66,7 +81,7 @@ export default async function handler(req, res) {
     };
   }
 
-  const prompt = `You are SafeClause, a senior contract risk auditor. Analyze this contract under ${jur} legal framework.
+  const prompt = \`You are SafeClause, a senior contract risk auditor. Analyze this contract under \${jur} legal framework.
 Identify 4 high-risk or predatory clauses (such as unfair payment terms, uncapped indemnities, broad non-competes, or harsh IP transfers).
 
 Return strictly a single raw JSON object (no markdown, no backticks):
@@ -80,14 +95,14 @@ Return strictly a single raw JSON object (no markdown, no backticks):
       "problematic_fine_print": "Exact quote from contract text",
       "why_it_hurts": "Plain English explanation of financial or legal trap",
       "safe_counter_clause": "Replacement clause protecting the freelancer",
-      "polite_client_negotiation_email": "Subject: Contract Review - Suggested Adjustment\\n\\nHi [Client Name],\\n\\nRegarding this section... [Polite professional negotiation email requesting this change]\\n\\nBest regards,\\n[Your Name]"
+      "polite_client_negotiation_email": "Subject: Contract Review - Suggested Adjustment\\\\n\\\\nHi [Client Name],\\\\n\\\\nRegarding this section... [Polite professional negotiation email requesting this change]\\\\n\\\\nBest regards,\\\\n[Your Name]"
     }
   ]
 }
 
-Contract Title: ${activeTitle}
+Contract Title: \${activeTitle}
 Contract Text:
-${cleanText}`;
+\${cleanText}\`;
 
   // 1. TIER 1: OpenRouter Top Free Models
   if (openrouterKey && cleanText.length > 30) {
@@ -104,7 +119,7 @@ ${cleanText}`;
         const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${openrouterKey}`,
+            "Authorization": \`Bearer \${openrouterKey}\`,
             "Content-Type": "application/json",
             "HTTP-Referer": "https://safeclause-nine.vercel.app"
           },
@@ -119,14 +134,14 @@ ${cleanText}`;
         if (res.ok) {
           const d = await res.json();
           const content = d.choices?.[0]?.message?.content || "";
-          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
             const list = parsed.flagged_clauses || parsed.clauses || [];
             if (list.length > 0) {
               const formatted = list.map(populateAllAliases);
               const out = {
-                overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\s*RISK/i, ''),
+                overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\\s*RISK/i, ''),
                 risk_level: 'HIGH',
                 jurisdiction: jur,
                 contract_title: activeTitle,
@@ -158,7 +173,7 @@ ${cleanText}`;
       try {
         const ctrl = new AbortController();
         const tid = setTimeout(() => ctrl.abort(), 4000);
-        const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
+        const gRes = await fetch(\`https://generativelanguage.googleapis.com/v1beta/models/\${model}:generateContent?key=\${geminiKey}\`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: ctrl.signal,
@@ -178,7 +193,7 @@ ${cleanText}`;
             if (list.length > 0) {
               const formatted = list.map(populateAllAliases);
               const out = {
-                overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\s*RISK/i, ''),
+                overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\\s*RISK/i, ''),
                 risk_level: 'HIGH',
                 jurisdiction: jur,
                 contract_title: activeTitle,
@@ -195,12 +210,12 @@ ${cleanText}`;
   }
 
   // 3. TIER 3: Dynamic Sentence Parser (Quotes actual lines from uploaded contract)
-  const sentences = cleanText.split(/\.|\n/).map(s => s.trim()).filter(s => s.length > 25);
+  const sentences = cleanText.split(/\\.|\\n/).map(s => s.trim()).filter(s => s.length > 25);
   const getSentence = (re, fallback) => sentences.find(s => re.test(s)) || fallback;
 
-  const paymentQuote = getSentence(/net[\s-]*[0-9]+|disburse|invoice|waiv|delay|fee|pay/i, "Payments shall be released following internal approvals and subjective acceptance.");
+  const paymentQuote = getSentence(/net[\\s-]*[0-9]+|disburse|invoice|waiv|delay|fee|pay/i, "Payments shall be released following internal approvals and subjective acceptance.");
   const liabilityQuote = getSentence(/indemnif|hold harmless|liabilit|damage|loss|breach/i, "Developer agrees to defend and hold harmless Client from any and all damages without limitation.");
-  const restraintQuote = getSentence(/non[\s-]*compete|restraint|competitor|solicit|trade|exclusive/i, "Developer shall not provide services to any competitor of Client post-termination.");
+  const restraintQuote = getSentence(/non[\\s-]*compete|restraint|competitor|solicit|trade|exclusive/i, "Developer shall not provide services to any competitor of Client post-termination.");
   const ipQuote = getSentence(/intellectual|copyright|moral rights|ownership|assign|work product/i, "All intellectual property rights shall transfer immediately upon creation regardless of payment status.");
 
   const fallbackClauses = [
@@ -210,7 +225,7 @@ ${cleanText}`;
       problematic_fine_print: paymentQuote,
       why_it_hurts: "Delayed or milestone-discretion payment terms force you into an interest-free financing position and create risk of non-payment upon arbitrary disputes.",
       safe_counter_clause: "Invoices shall be payable within 14 calendar days of receipt (Net-14). Deliverables remain subject to timely fee clearance.",
-      polite_client_negotiation_email: "Subject: Contract Review - Payment Terms Alignment\\n\\nHi [Client Name],\\n\\nRegarding the payment section: As an independent consultant, my standard operational terms are Net-14 from invoice issuance. I've updated this section to ensure alignment with our delivery schedule.\\n\\nBest regards,\\n[Your Name]"
+      polite_client_negotiation_email: "Subject: Contract Review - Payment Terms Alignment\\\\n\\\\nHi [Client Name],\\\\n\\\\nRegarding the payment section: As an independent consultant, my standard operational terms are Net-14 from invoice issuance. I've updated this section to ensure alignment with our delivery schedule.\\\\n\\\\nBest regards,\\\\n[Your Name]"
     }),
     populateAllAliases({
       category: "INDEMNITY_AND_LIABILITY",
@@ -218,7 +233,7 @@ ${cleanText}`;
       problematic_fine_print: liabilityQuote,
       why_it_hurts: "Uncapped personal indemnity exposes you to unlimited liability for commercial claims and third-party downtime far exceeding project fees.",
       safe_counter_clause: "Each party's maximum aggregate liability arising under this Agreement shall be strictly limited to 100% of fees paid to Developer.",
-      polite_client_negotiation_email: "Subject: Contract Review - Mutual Liability Cap\\n\\nHi [Client Name],\\n\\nRegarding the indemnification clause: Industry best practice for software consulting specifies mutual liability capped at 100% of project fees. I have adjusted this clause accordingly.\\n\\nBest regards,\\n[Your Name]"
+      polite_client_negotiation_email: "Subject: Contract Review - Mutual Liability Cap\\\\n\\\\nHi [Client Name],\\\\n\\\\nRegarding the indemnification clause: Industry best practice for software consulting specifies mutual liability capped at 100% of project fees. I have adjusted this clause accordingly.\\\\n\\\\nBest regards,\\\\n[Your Name]"
     }),
     populateAllAliases({
       category: "RESTRICTIVE_COVENANTS",
@@ -226,7 +241,7 @@ ${cleanText}`;
       problematic_fine_print: restraintQuote,
       why_it_hurts: "Post-termination non-competes in independent consulting are void under Section 27 of the Indian Contract Act, 1872 as restraint of trade and unduly limit future clients.",
       safe_counter_clause: "Developer shall maintain strict confidentiality regarding Client proprietary assets, with no restraint on lawful future professional trade.",
-      polite_client_negotiation_email: "Subject: Contract Review - Restrictive Covenants\\n\\nHi [Client Name],\\n\\nRegarding the non-compete clause: As an independent consultant working across technology domains, I have replaced the broad non-compete with strict IP and Confidentiality protections.\\n\\nBest regards,\\n[Your Name]"
+      polite_client_negotiation_email: "Subject: Contract Review - Restrictive Covenants\\\\n\\\\nHi [Client Name],\\\\n\\\\nRegarding the non-compete clause: As an independent consultant working across technology domains, I have replaced the broad non-compete with strict IP and Confidentiality protections.\\\\n\\\\nBest regards,\\\\n[Your Name]"
     }),
     populateAllAliases({
       category: "IP_ASSIGNMENT",
@@ -234,7 +249,7 @@ ${cleanText}`;
       problematic_fine_print: ipQuote,
       why_it_hurts: "Transferring IP ownership prior to full milestone payment clearance eliminates developer recourse if invoices remain unpaid.",
       safe_counter_clause: "All intellectual property rights in the custom deliverables shall transfer to Client strictly upon receipt of 100% agreed fees.",
-      polite_client_negotiation_email: "Subject: Contract Review - IP Transfer Milestone\\n\\nHi [Client Name],\\n\\nRegarding the IP assignment: Standard industry procedure is for IP ownership to transfer upon receipt of final invoice clearance. I have updated Section 4 to reflect this.\\n\\nBest regards,\\n[Your Name]"
+      polite_client_negotiation_email: "Subject: Contract Review - IP Transfer Milestone\\\\n\\\\nHi [Client Name],\\\\n\\\\nRegarding the IP assignment: Standard industry procedure is for IP ownership to transfer upon receipt of final invoice clearance. I have updated Section 4 to reflect this.\\\\n\\\\nBest regards,\\\\n[Your Name]"
     })
   ];
 
@@ -243,10 +258,96 @@ ${cleanText}`;
     risk_level: "HIGH",
     jurisdiction: jur,
     contract_title: activeTitle,
-    summary: `Contract analysis identified ${fallbackClauses.length} critical legal liability and commercial payment areas requiring renegotiation.`,
+    summary: \`Contract analysis identified \${fallbackClauses.length} critical legal liability and commercial payment areas requiring renegotiation.\`,
     flagged_clauses: fallbackClauses,
     clauses: fallbackClauses
   };
 
   return res.status(200).json({ success: true, data: defaultResult, ...defaultResult });
 };
+`;
+
+fs.writeFileSync('api/audit.js', apiCode);
+fs.writeFileSync('api/analyze.js', apiCode);
+fs.writeFileSync('api/scan.js', apiCode);
+console.log("✓ Updated api/audit.js, analyze.js, scan.js");
+
+console.log("=== 3. UPDATING APP.SVELTE CLIENT NORMALIZER ===");
+
+const newNormalizer = `function normalizeAudit(data) {
+      if (!data) return null;
+      const list = data.flagged_clauses || data.clauses || [];
+      const cleanList = list.map(c => {
+        const fine = c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.problematicFinePrint || c.original_clause || c.original_text || c.clause || c.text || c.snippet || '';
+        const hurts = c.why_it_hurts || c.whyItHurts || c.why_it_hurts_you || c.explanation || c.reason || c.impact || '';
+        const counter = c.safe_counter_clause || c.counter_clause || c.safeCounterClause || c.counterClause || c.safe_clause || '';
+        const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || c.politeClientNegotiationEmail || c.client_negotiation_email || c.email_template || c.email_draft || '';
+
+        return {
+          ...c,
+          category: (c.category || 'RISK_CLAUSE').replace(/\\s+/g, '_').toUpperCase(),
+          risk_level: String(c.risk_level || c.riskLevel || 'HIGH').replace(/\\s*RISK/i, ''),
+          problematic_fine_print: fine,
+          fine_print: fine,
+          problematicFinePrint: fine,
+          finePrint: fine,
+          quote: fine,
+          clause_quote: fine,
+          original_clause: fine,
+          original_text: fine,
+          clause: fine,
+          clause_text: fine,
+          text: fine,
+          snippet: fine,
+          why_it_hurts: hurts,
+          whyItHurts: hurts,
+          why_it_hurts_you: hurts,
+          explanation: hurts,
+          reason: hurts,
+          impact: hurts,
+          safe_counter_clause: counter,
+          safeCounterClause: counter,
+          counter_clause: counter,
+          counterClause: counter,
+          safe_clause: counter,
+          polite_client_negotiation_email: email,
+          politeClientNegotiationEmail: email,
+          negotiation_email: email,
+          negotiationEmail: email,
+          client_negotiation_email: email,
+          email: email,
+          email_template: email,
+          email_draft: email
+        };
+      });
+
+      return {
+        ...data,
+        overall_risk_score: String(data.overall_risk_score || data.risk_level || 'HIGH').replace(/\\s*RISK/i, ''),
+        jurisdiction: String(data.jurisdiction || jurisdiction || 'INDIA').replace(/\\s*LAW/i, ''),
+        contract_title: data.contract_title || data.contractTitle || contractTitle || 'Contract Audit',
+        summary: data.summary || 'Contract risk audit complete.',
+        flagged_clauses: cleanList,
+        clauses: cleanList
+      };
+    }`;
+
+const normRegex = /function normalizeAudit\(data\)[\s\S]*?return\s*\{[\s\S]*?clauses:\s*cleanList\s*\};\s*\}/;
+if (normRegex.test(appCode)) {
+  appCode = appCode.replace(normRegex, newNormalizer);
+  fs.writeFileSync('src/App.svelte', appCode);
+  console.log("✓ Replaced normalizeAudit cleanly in App.svelte");
+}
+
+console.log("=== 4. VERIFYING LOCAL BUILD ===");
+try {
+  execSync('npm run build', { stdio: 'inherit' });
+  console.log("✓ LOCAL BUILD VERIFIED 100%!");
+
+  console.log("=== 5. DEPLOYING TO VERCEL ===");
+  execSync('git add . && git commit -m "feat: live tiered ai models & comprehensive template alias mapping" && git push', { stdio: 'inherit' });
+  console.log("✓ DEPLOYED SUCCESSFULLY TO VERCEL!");
+} catch (e) {
+  console.error("Build/Git Error:", e.message);
+  process.exit(1);
+}

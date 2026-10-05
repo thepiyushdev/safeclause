@@ -473,12 +473,13 @@
       if (!data) return null;
       const list = data.flagged_clauses || data.clauses || [];
       const cleanList = list.map(c => {
-        const fine = c.problematic_fine_print || c.fine_print || c.problematicFinePrint || c.finePrint || c.quote || c.clause || '';
-        const hurts = c.why_it_hurts || c.whyItHurts || c.why_it_hurts_you || c.explanation || '';
-        const counter = c.safe_counter_clause || c.counter_clause || c.safeCounterClause || c.counterClause || '';
-        const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || c.politeClientNegotiationEmail || c.client_email || '';
+        const fine = c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.problematicFinePrint || c.original_clause || c.original_text || c.clause || c.text || c.snippet || '';
+        const hurts = c.why_it_hurts || c.whyItHurts || c.why_it_hurts_you || c.explanation || c.reason || c.impact || '';
+        const counter = c.safe_counter_clause || c.counter_clause || c.safeCounterClause || c.counterClause || c.safe_clause || '';
+        const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || c.politeClientNegotiationEmail || c.client_negotiation_email || c.email_template || c.email_draft || '';
 
         return {
+          ...c,
           category: (c.category || 'RISK_CLAUSE').replace(/\s+/g, '_').toUpperCase(),
           risk_level: String(c.risk_level || c.riskLevel || 'HIGH').replace(/\s*RISK/i, ''),
           problematic_fine_print: fine,
@@ -486,18 +487,32 @@
           problematicFinePrint: fine,
           finePrint: fine,
           quote: fine,
+          clause_quote: fine,
+          original_clause: fine,
+          original_text: fine,
+          clause: fine,
+          clause_text: fine,
+          text: fine,
+          snippet: fine,
           why_it_hurts: hurts,
           whyItHurts: hurts,
           why_it_hurts_you: hurts,
           explanation: hurts,
+          reason: hurts,
+          impact: hurts,
           safe_counter_clause: counter,
           safeCounterClause: counter,
           counter_clause: counter,
           counterClause: counter,
+          safe_clause: counter,
           polite_client_negotiation_email: email,
           politeClientNegotiationEmail: email,
           negotiation_email: email,
-          email: email
+          negotiationEmail: email,
+          client_negotiation_email: email,
+          email: email,
+          email_template: email,
+          email_draft: email
         };
       });
 
@@ -506,7 +521,7 @@
         overall_risk_score: String(data.overall_risk_score || data.risk_level || 'HIGH').replace(/\s*RISK/i, ''),
         jurisdiction: String(data.jurisdiction || jurisdiction || 'INDIA').replace(/\s*LAW/i, ''),
         contract_title: data.contract_title || data.contractTitle || contractTitle || 'Contract Audit',
-        summary: data.summary || 'Risk audit completed.',
+        summary: data.summary || 'Contract risk audit complete.',
         flagged_clauses: cleanList,
         clauses: cleanList
       };
