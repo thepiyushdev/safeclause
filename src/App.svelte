@@ -285,7 +285,7 @@
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Audit failed');
 
-      auditResult = json.data;
+      auditResult = json.data || json;
       setTimeout(() => {
         const el = document.getElementById('audit-results');
         if (el) el.scrollIntoView({ behavior: 'smooth' });
