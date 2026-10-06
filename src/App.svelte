@@ -630,9 +630,12 @@
   main, .tabs, footer { max-width: 780px; margin: 0 auto; padding-left: 14px; padding-right: 14px; }
   main { padding-bottom: 30px; }
   .glass { background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.09); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-  .nav { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; border-width: 0 0 1px 0; }
-  .logo { background: none; border: 0; color: inherit; font: inherit; font-weight: 800; font-size: 1.1rem; cursor: pointer; }
-  .nav-right { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+  .nav { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border-width: 0 0 1px 0; max-width: 100%; box-sizing: border-box; }
+  .logo { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0; background: none; border: 0; color: inherit; font: inherit; font-weight: 800; font-size: 1.05rem; cursor: pointer; padding: 0; }
+  .logo span { white-space: nowrap; }
+  .nav-right { display: flex; gap: 5px; align-items: center; flex-shrink: 1; min-width: 0; overflow-x: auto; }
+  .nav-right .btn { white-space: nowrap; padding: 5px 8px; font-size: 0.75rem; font-weight: 600; border-radius: 8px; }
+  .nav-right .chip { white-space: nowrap; padding: 4px 8px; font-size: 0.75rem; font-weight: 700; border-radius: 999px; }
   .nav-right .btn { white-space: nowrap; padding: 6px 10px; font-size: 0.8rem; font-weight: 600; }
   .nav-right .chip { white-space: nowrap; padding: 5px 9px; font-size: 0.8rem; }
   .chip { background: rgba(109, 94, 252, 0.18); border: 1px solid rgba(109, 94, 252, 0.5); color: #cfc9ff; padding: 5px 11px; border-radius: 999px; font: inherit; font-weight: 700; cursor: pointer; box-shadow: 0 0 14px rgba(109, 94, 252, 0.35); }
