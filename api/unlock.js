@@ -1,12 +1,18 @@
 import crypto from "node:crypto";
-// api/unlock.js - server-side paywall
+// api/unlock.js - server-side paywall. Uses plain PostgREST calls, no RPC functions needed.
 
 const SB_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
+// IMPORTANT: this function must stay identical in api/audit.js and api/unlock.js.
+function getSecret() {
+  return process.env.UNLOCK_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+}
+
 function keyBytes() {
-  const base = process.env.UNLOCK_SECRET || SB_SERVICE;
+  const base = getSecret();
+  if (!base) throw new Error("Server is missing SUPABASE_SERVICE_ROLE_KEY (or UNLOCK_SECRET).");
   return crypto.createHash("sha256").update("safeclause:" + base).digest();
 }
 
@@ -23,6 +29,22 @@ function unseal(token) {
   }
 }
 
+async function sbFetch(pathAndQuery, opts) {
+  const o = opts || {};
+  const headers = Object.assign(
+    { apikey: SB_SERVICE, Authorization: "Bearer " + SB_SERVICE, "Content-Type": "application/json" },
+    o.headers || {}
+  );
+  const r = await fetch(SB_URL + "/rest/v1/" + pathAndQuery, { method: o.method || "GET", headers: headers, body: o.body });
+  const text = await r.text();
+  if (!r.ok) {
+    const err = new Error("Database error (" + r.status + "): " + (text || "").slice(0, 200));
+    err.status = r.status;
+    throw err;
+  }
+  try { return text ? JSON.parse(text) : null; } catch (e) { return null; }
+}
+
 async function getUser(req) {
   const h = req.headers.authorization || "";
   const token = h.indexOf("Bearer ") === 0 ? h.slice(7) : "";
@@ -33,20 +55,30 @@ async function getUser(req) {
   return u && u.id ? u : null;
 }
 
-async function rpc(name, args) {
-  const r = await fetch(SB_URL + "/rest/v1/rpc/" + name, {
-    method: "POST",
-    headers: { apikey: SB_SERVICE, Authorization: "Bearer " + SB_SERVICE, "Content-Type": "application/json" },
-    body: JSON.stringify(args),
-  });
-  const text = await r.text();
-  if (!r.ok) throw new Error("Database error: " + text.slice(0, 200));
-  return JSON.parse(text);
+// Read credits, then PATCH only if the balance is still what we read (compare-and-swap).
+// Two parallel unlocks cannot both spend the same credit.
+async function spendOneCredit(userId) {
+  const id = encodeURIComponent(userId);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const rows = await sbFetch("profiles?id=eq." + id + "&select=credits");
+    const current = rows && rows[0] ? Number(rows[0].credits) : NaN;
+    if (!isFinite(current)) return { ok: false, reason: "noprofile" };
+    if (current < 1) return { ok: false, reason: "nocredits" };
+    const updated = await sbFetch("profiles?id=eq." + id + "&credits=eq." + current, {
+      method: "PATCH",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify({ credits: current - 1 }),
+    });
+    if (Array.isArray(updated) && updated.length === 1) return { ok: true, credits: current - 1 };
+  }
+  return { ok: false, reason: "busy" };
 }
 
 async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Use POST." });
-  if (!SB_URL || !SB_SERVICE) return res.status(500).json({ error: "Server is missing Supabase settings." });
+  if (!SB_URL || !SB_SERVICE) {
+    return res.status(500).json({ error: "Server is missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY." });
+  }
 
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch (e) { body = {}; } }
@@ -54,21 +86,27 @@ async function handler(req, res) {
 
   try {
     const user = await getUser(req);
-    if (!user) return res.status(401).json({ error: "Please log in to unlock." });
+    if (!user) return res.status(401).json({ error: "Session expired. Please log in again." });
 
     const locked = unseal(body.token);
-    if (!locked || !locked.c || Date.now() - Number(locked.t || 0) > MAX_AGE_MS) {
-      return res.status(400).json({ error: "This unlock link expired. Please run the audit again." });
+    if (!locked || !locked.c) {
+      return res.status(400).json({ error: "Invalid unlock token. Run the audit again." });
+    }
+    if (Date.now() - Number(locked.t || 0) > MAX_AGE_MS) {
+      return res.status(400).json({ error: "This unlock token expired. Run the audit again." });
     }
 
-    const left = await rpc("spend_credit", { p_user: user.id });
-    if (typeof left !== "number" || left < 0) {
-      return res.status(402).json({ error: "You have no credits left. Buy a credit to unlock." });
+    const spent = await spendOneCredit(user.id);
+    if (!spent.ok) {
+      if (spent.reason === "nocredits") return res.status(402).json({ error: "You have no credits left. Buy a credit to unlock." });
+      if (spent.reason === "noprofile") return res.status(404).json({ error: "No credit account found for this user." });
+      return res.status(503).json({ error: "Server is busy. Please try again." });
     }
+
     return res.status(200).json({
       safe_counter_clause: locked.c,
       polite_client_negotiation_email: locked.e,
-      credits: left,
+      credits: spent.credits,
     });
   } catch (e) {
     return res.status(500).json({ error: (e && e.message) || "Unlock failed." });

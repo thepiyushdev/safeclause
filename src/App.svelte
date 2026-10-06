@@ -2,39 +2,9 @@
   import { onMount, onDestroy } from "svelte";
   import { createClient } from "@supabase/supabase-js";
 
-  function cleanEnvStr(s) {
-    return String(s || "")
-      .trim()
-      .replace(/^["']|["']$/g, "")
-      .replace(/[\r\n\t\s]+/g, "")
-      .trim();
-  }
-
-  function cleanUrl(raw) {
-    let u = cleanEnvStr(raw);
-    if (u && !u.startsWith("http://") && !u.startsWith("https://")) {
-      u = "https://" + u;
-    }
-    return u.replace(/\/+$/, "");
-  }
-
-  function cleanKey(raw) {
-    let k = cleanEnvStr(raw);
-    if (k.toLowerCase().startsWith("bearer ")) {
-      k = k.slice(7).trim();
-    }
-    return k;
-  }
-
-  let sb = null;
-  const buildUrl = cleanUrl(import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
-  const buildKey = cleanKey(import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY);
-
-  if (buildUrl && buildKey) {
-    try {
-      sb = createClient(buildUrl, buildKey);
-    } catch (e) {}
-  }
+  const SB_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SB_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const sb = SB_URL && SB_KEY ? createClient(SB_URL, SB_KEY) : null;
 
   const UPI_ID = "8796021247@fam";
   const MAX_CHARS = 10000;
@@ -44,6 +14,8 @@
   ];
   const PLACEHOLDER =
     "The Contractor shall invoice the Client upon delivery and the Client shall pay each invoice within fourteen (14) days. Late amounts accrue interest. Liability is limited to the fees paid under this Agreement. Ownership of all deliverables transfers only after payment in full.";
+  const PLACEHOLDER_EMAIL =
+    "Subject: Request to update payment and liability terms\n\nHi [Client Name],\n\nThank you for sending the agreement. Before signing, I would like to propose a few changes so both sides are protected...";
 
   const SAMPLES = {
     india: [
@@ -79,6 +51,7 @@
   let error = "";
   let result = null;
   let unlockedData = {};
+  let unlockErrors = {};
   let unlocking = -1;
   let copied = "";
   let pdfBusy = false;
@@ -113,29 +86,14 @@
   $: highCount = flagged.filter(function (c) { return c.risk_level === "HIGH"; }).length;
 
   onMount(async function () {
-    if (!sb) {
-      try {
-        const cfgRes = await fetch("/api/config");
-        if (cfgRes.ok) {
-          const cfg = await cfgRes.json();
-          if (cfg.supabaseUrl && cfg.supabaseAnonKey) {
-            sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-          }
-        }
-      } catch (err) {}
-    }
-
     if (!sb) return;
-
-    try {
-      const res0 = await sb.auth.getSession();
-      session = res0.data ? res0.data.session : null;
-      const res = sb.auth.onAuthStateChange(function (event, s) {
-        session = s;
-        if (event === "PASSWORD_RECOVERY") showRecovery = true;
-      });
-      sub = res.data.subscription;
-    } catch (err) {}
+    const res0 = await sb.auth.getSession();
+    session = res0.data ? res0.data.session : null;
+    const res = sb.auth.onAuthStateChange(function (event, s) {
+      session = s;
+      if (event === "PASSWORD_RECOVERY") showRecovery = true;
+    });
+    sub = res.data.subscription;
   });
   onDestroy(function () { if (sub) sub.unsubscribe(); });
 
@@ -165,6 +123,11 @@
     return l === "HIGH" ? "high" : l === "LOW" ? "low" : "med";
   }
 
+  function shortCredits(n) {
+    const v = Number(n) || 0;
+    return v >= 10000 ? Math.floor(v / 100) / 10 + "k" : String(v);
+  }
+
   /* ---------- auth ---------- */
   function openAuth(mode, note) {
     authMode = mode || "login";
@@ -189,8 +152,12 @@
       } else if (authMode === "signup") {
         const r = await sb.auth.signUp({ email: email.trim(), password: password, options: { emailRedirectTo: window.location.origin } });
         if (r.error) throw r.error;
-        if (r.data && r.data.session) { authOpen = false; }
-        else { authOk = true; authMsg = "Account created. Check your email to confirm, then log in."; }
+        if (r.data && r.data.session) {
+          authOpen = false;
+        } else {
+          authOk = true;
+          authMsg = "Account created. Check your email to confirm, then log in.";
+        }
       } else {
         const r = await sb.auth.signInWithPassword({ email: email.trim(), password: password });
         if (r.error) throw r.error;
@@ -224,6 +191,7 @@
   async function signOut() {
     if (sb) await sb.auth.signOut();
     unlockedData = {};
+    unlockErrors = {};
     tab = "audit";
   }
 
@@ -282,6 +250,7 @@
     loading = true;
     result = null;
     unlockedData = {};
+    unlockErrors = {};
     try {
       const r = await fetch("/api/audit", {
         method: "POST",
@@ -298,23 +267,33 @@
     }
   }
 
+  function setUnlockError(i, msg) {
+    unlockErrors = Object.assign({}, unlockErrors, { [i]: msg });
+  }
+
   async function unlock(i) {
     error = "";
     if (!user) { openAuth("login", "Log in to unlock. Your credits are saved to your account."); return; }
     if (credits < 1) { openPay(1); return; }
     unlocking = i;
+    setUnlockError(i, "");
     try {
+      const headers = await authHeaders();
+      if (headers.Authorization === "Bearer ") throw new Error("Session expired. Please log in again.");
       const r = await fetch("/api/unlock", {
         method: "POST",
-        headers: await authHeaders(),
+        headers: headers,
         body: JSON.stringify({ token: flagged[i].locked_token }),
       });
       const data = await readJson(r);
-      if (!r.ok) throw new Error(data.error || "Unlock failed.");
+      if (r.status === 401) throw new Error("Session expired. Please log in again.");
+      if (!r.ok || !data.safe_counter_clause) throw new Error(data.error || "Unlock failed (HTTP " + r.status + ").");
       unlockedData = Object.assign({}, unlockedData, { [i]: data });
       credits = data.credits;
     } catch (err) {
-      error = err && err.message ? err.message : "Unlock failed.";
+      let msg = err && err.message ? err.message : "Unlock failed.";
+      if (err instanceof TypeError) msg = "Network error. Check your connection and try again.";
+      setUnlockError(i, msg);
     } finally {
       unlocking = -1;
     }
@@ -400,12 +379,12 @@
 
 <div class="app">
   <nav class="nav glass">
-    <button class="logo" on:click={() => (tab = "audit")}>🛡️ <span>SafeClause</span></button>
+    <button class="logo" on:click={() => (tab = "audit")}><span>🛡️</span><span>SafeClause</span></button>
     <div class="nav-right">
-      <button class="chip" on:click={() => (tab = "pricing")} title="Credits">⚡ {credits}</button>
-      <button class="btn sm accent" on:click={() => openPay(1)}>Buy Credits</button>
+      <button class="chip" on:click={() => (tab = "pricing")} title={credits + " credits"}>⚡ {shortCredits(credits)}</button>
+      <button class="btn sm accent buybtn" on:click={() => openPay(1)}><span class="long">Buy Credits</span><span class="short">Buy</span></button>
       {#if user}
-        <button class="btn sm" on:click={() => (tab = "account")}>👤 {user.email.split("@")[0]}</button>
+        <button class="btn sm userbtn" on:click={() => (tab = "account")} title={user.email}>👤 <span class="uname">{user.email.split("@")[0]}</span></button>
       {:else}
         <button class="btn sm" on:click={() => openAuth("login")}>Login</button>
       {/if}
@@ -486,7 +465,7 @@
                   <h3>Safe Counter-Clause</h3>
                   <div class="box pre">{PLACEHOLDER}</div>
                   <h3>Polite Client Negotiation Email</h3>
-                  <div class="box pre">Subject: Request to update payment and liability terms{"\n\n"}Hi [Client Name],{"\n\n"}Thank you for sending the agreement. Before signing, I would like to propose a few changes so both sides are protected...</div>
+                  <div class="box pre">{PLACEHOLDER_EMAIL}</div>
                 </div>
                 <div class="lock-overlay">
                   <div class="lock-card">
@@ -500,6 +479,9 @@
                         Use 1 Credit to Unlock (Balance: {credits}) ⚡
                       {/if}
                     </button>
+                    {#if unlockErrors[i]}
+                      <div class="error" role="alert">⚠️ {unlockErrors[i]}</div>
+                    {/if}
                   </div>
                 </div>
               {/if}
@@ -536,7 +518,7 @@
         {#if !sb}
           <div class="error">Login is not configured yet. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy.</div>
         {:else if user}
-          <p><strong>{user.email}</strong></p>
+          <p class="pre"><strong>{user.email}</strong></p>
           <p class="big">⚡ {credits} credit{credits === 1 ? "" : "s"}</p>
           <div class="row">
             <button class="btn accent" on:click={() => openPay(1)}>Buy Credits</button>
@@ -625,23 +607,36 @@
 
 <style>
   :global(*) { box-sizing: border-box; }
-  :global(body) { margin: 0; background: #090d16; color: #e6e9ef; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  :global(html), :global(body) { margin: 0; max-width: 100%; overflow-x: hidden; }
+  :global(body) { background: #090d16; color: #e6e9ef; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   .app { min-height: 100vh; background: radial-gradient(900px 500px at 15% -10%, rgba(109, 94, 252, 0.22), transparent), radial-gradient(700px 400px at 100% 0%, rgba(34, 211, 238, 0.12), transparent); }
   main, .tabs, footer { max-width: 780px; margin: 0 auto; padding-left: 14px; padding-right: 14px; }
   main { padding-bottom: 30px; }
   .glass { background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.09); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-  .nav { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border-width: 0 0 1px 0; max-width: 100%; box-sizing: border-box; }
-  .logo { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0; background: none; border: 0; color: inherit; font: inherit; font-weight: 800; font-size: 1.05rem; cursor: pointer; padding: 0; }
-  .logo span { white-space: nowrap; }
-  .nav-right { display: flex; gap: 5px; align-items: center; flex-shrink: 1; min-width: 0; overflow-x: auto; }
-  .nav-right .btn { white-space: nowrap; padding: 5px 8px; font-size: 0.75rem; font-weight: 600; border-radius: 8px; }
-  .nav-right .chip { white-space: nowrap; padding: 4px 8px; font-size: 0.75rem; font-weight: 700; border-radius: 999px; }
-  .nav-right .btn { white-space: nowrap; padding: 6px 10px; font-size: 0.8rem; font-weight: 600; }
-  .nav-right .chip { white-space: nowrap; padding: 5px 9px; font-size: 0.8rem; }
-  .chip { background: rgba(109, 94, 252, 0.18); border: 1px solid rgba(109, 94, 252, 0.5); color: #cfc9ff; padding: 5px 11px; border-radius: 999px; font: inherit; font-weight: 700; cursor: pointer; box-shadow: 0 0 14px rgba(109, 94, 252, 0.35); }
-  .tabs { display: flex; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; padding: 4px; gap: 4px; margin-top: 14px; width: 100%; box-sizing: border-box; }
-  .tabs button { flex: 1; padding: 9px 8px; border-radius: 8px; border: none; background: transparent; color: #94a3b8; font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; white-space: nowrap; text-align: center; transition: all 0.2s ease; }
-  .tabs button.active { background: linear-gradient(135deg, #6d5efc, #3b82f6); color: #ffffff; box-shadow: 0 2px 10px rgba(109, 94, 252, 0.4); }
+
+  .nav { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; border-width: 0 0 1px 0; }
+  .logo { display: flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0; font-weight: 800; font-size: 1.05rem; background: none; border: 0; color: inherit; font-family: inherit; cursor: pointer; padding: 0; }
+  .nav-right { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; }
+  .chip { flex-shrink: 0; white-space: nowrap; background: rgba(109, 94, 252, 0.18); border: 1px solid rgba(109, 94, 252, 0.5); color: #cfc9ff; padding: 3px 8px; font-size: 0.75rem; border-radius: 999px; font-family: inherit; font-weight: 700; cursor: pointer; box-shadow: 0 0 12px rgba(109, 94, 252, 0.35); }
+  .nav-right .btn.sm { padding: 5px 9px; font-size: 0.75rem; white-space: nowrap; }
+  .buybtn { flex-shrink: 0; }
+  .userbtn { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .uname { display: inline-block; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .short { display: none; }
+  @media (max-width: 430px) {
+    .nav { padding: 10px 12px; gap: 6px; }
+    .logo { font-size: 0.98rem; }
+    .long { display: none; }
+    .short { display: inline; }
+    .uname { max-width: 52px; }
+  }
+  @media (max-width: 340px) {
+    .uname { display: none; }
+  }
+
+  .tabs { display: flex; gap: 6px; margin-top: 12px; overflow-x: auto; }
+  .tabs button { flex: 1; white-space: nowrap; padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); background: transparent; color: #9aa4b5; font: inherit; cursor: pointer; }
+  .tabs button.active { color: #fff; background: rgba(109, 94, 252, 0.22); border-color: rgba(109, 94, 252, 0.55); }
   .hero { text-align: center; padding: 22px 0 10px; }
   .hero h1 { margin: 0 0 8px; font-size: 1.7rem; line-height: 1.2; }
   .hero p { margin: 0; color: #9aa4b5; }
@@ -667,7 +662,7 @@
   textarea { resize: vertical; }
   input[type="file"] { width: 100%; margin-bottom: 8px; color: #9aa4b5; }
   .count { font-size: 0.75rem; color: #7d889b; margin: -2px 0 10px; }
-  .error { margin-top: 10px; padding: 11px 13px; border-radius: 10px; background: rgba(120, 25, 35, 0.45); border: 1px solid rgba(248, 113, 113, 0.5); color: #ffc2c8; font-size: 0.9rem; word-break: break-word; }
+  .error { margin-top: 10px; padding: 11px 13px; border-radius: 10px; background: rgba(120, 25, 35, 0.45); border: 1px solid rgba(248, 113, 113, 0.5); color: #ffc2c8; font-size: 0.9rem; word-break: break-word; text-align: left; }
   .okmsg { margin-top: 10px; padding: 11px 13px; border-radius: 10px; background: rgba(20, 100, 60, 0.4); border: 1px solid rgba(74, 222, 128, 0.5); color: #bbf7d0; font-size: 0.9rem; }
   .badge { padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
   .badge.high { background: rgba(239, 68, 68, 0.2); color: #ff8793; }
@@ -679,7 +674,7 @@
   .locked-wrap { position: relative; margin-top: 6px; }
   .premium.blurred { filter: blur(8px); opacity: 0.35; pointer-events: none; user-select: none; }
   .lock-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 10px; }
-  .lock-card { width: 100%; max-width: 400px; text-align: center; padding: 18px 16px; border-radius: 16px; background: rgba(8, 11, 20, 0.88); border: 1px solid rgba(255, 255, 255, 0.16); backdrop-filter: blur(8px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 30px rgba(109, 94, 252, 0.25); }
+  .lock-card { width: 100%; max-width: 400px; text-align: center; padding: 18px 16px; border-radius: 16px; background: rgba(8, 11, 20, 0.9); border: 1px solid rgba(255, 255, 255, 0.16); backdrop-filter: blur(8px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 30px rgba(109, 94, 252, 0.25); }
   .lock-title { font-weight: 800; margin-bottom: 12px; }
   .packs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
   .pack { position: relative; text-align: center; }

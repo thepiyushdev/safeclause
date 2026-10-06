@@ -31,9 +31,14 @@ const SYSTEM_PROMPT = [
   "- Use the JSON escape sequence for line breaks inside strings so the JSON stays valid.",
 ].join("\n");
 
+// IMPORTANT: this function must stay identical in api/audit.js and api/unlock.js.
+function getSecret() {
+  return process.env.UNLOCK_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+}
+
 function keyBytes() {
-  const base = process.env.UNLOCK_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  if (!base) throw new Error("Server is missing SUPABASE_SERVICE_ROLE_KEY.");
+  const base = getSecret();
+  if (!base) throw new Error("Server is missing SUPABASE_SERVICE_ROLE_KEY (or UNLOCK_SECRET).");
   return crypto.createHash("sha256").update("safeclause:" + base).digest();
 }
 
