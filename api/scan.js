@@ -12,11 +12,10 @@ export default async function handler(req, res) {
   const activeTitle = body.contractTitle || body.title || "Contract Audit";
   const jur = String(body.jurisdiction || 'INDIA').replace(/ LAW/i, '').trim();
 
-  const geminiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_KEY || process.env.GOOGLE_API_KEY;
-  const openrouterKey = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY;
+  const openrouterKey = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY || process.env.VITE_OPENROUTER_API_KEY;
 
   function populateItem(c) {
-    const fine = c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.problematicFinePrint || c.clause || c.text || '';
+    const fine = c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.clause || c.text || '';
     const hurts = c.why_it_hurts || c.whyItHurts || c.why_it_hurts_you || c.explanation || c.reason || '';
     const counter = c.safe_counter_clause || c.counter_clause || c.safeCounterClause || c.counterClause || '';
     const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || c.politeClientNegotiationEmail || '';
@@ -45,7 +44,7 @@ export default async function handler(req, res) {
     };
   }
 
-  const prompt = `You are SafeClause, a senior contract risk auditor. Analyze this contract under ${jur} legal framework.
+  const prompt = `You are SafeClause, a senior contract risk auditor. Analyze this contract under ${jur} law.
 Identify 4 high-risk or predatory clauses from this specific document text.
 
 Return strictly raw JSON (no markdown formatting, no code backticks):
@@ -68,28 +67,32 @@ Contract Title: ${activeTitle}
 Contract Text:
 ${cleanText}`;
 
-  // 1. TIER 1: OpenRouter Top Free Models
+  // 1. OpenRouter 100% Free Tier with Native Auto-Fallback
   if (openrouterKey && cleanText.length > 25) {
     const freeModels = [
-      'google/gemini-2.0-flash-exp:free',
       'meta-llama/llama-3.3-70b-instruct:free',
-      'deepseek/deepseek-r1:free'
+      'deepseek/deepseek-r1:free',
+      'qwen/qwen-2.5-72b-instruct:free',
+      'google/gemini-2.0-flash-exp:free',
+      'openrouter/free'
     ];
 
     for (const m of freeModels) {
       try {
         const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 4500);
+        const tid = setTimeout(() => ctrl.abort(), 6000);
         const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${openrouterKey}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://safeclause-nine.vercel.app"
+            "HTTP-Referer": "https://safeclause-nine.vercel.app",
+            "X-Title": "SafeClause"
           },
           signal: ctrl.signal,
           body: JSON.stringify({
             model: m,
+            models: freeModels,
             messages: [{ role: "user", content: prompt }]
           })
         });
@@ -122,59 +125,13 @@ ${cleanText}`;
     }
   }
 
-  // 2. TIER 2: Official Google Gemini Flash Models
-  if (geminiKey && cleanText.length > 25) {
-    const geminiModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
-
-    for (const m of geminiModels) {
-      try {
-        const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 4000);
-        const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: ctrl.signal,
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: 'application/json' }
-          })
-        });
-        clearTimeout(tid);
-
-        if (gRes.ok) {
-          const d = await gRes.json();
-          let raw = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          raw = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
-          const match = raw.match(/\{[\s\S]*\}/);
-          if (match) {
-            const parsed = JSON.parse(match[0]);
-            const list = parsed.flagged_clauses || parsed.clauses || [];
-            if (list.length > 0) {
-              const clauses = list.map(populateItem);
-              const result = {
-                overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\s*RISK/i, ''),
-                risk_level: 'HIGH',
-                jurisdiction: jur,
-                contract_title: activeTitle,
-                summary: parsed.summary || 'Live Gemini AI audit complete.',
-                flagged_clauses: clauses,
-                clauses: clauses
-              };
-              return res.status(200).json({ success: true, data: result, ...result });
-            }
-          }
-        }
-      } catch (err) {}
-    }
-  }
-
-  // 3. TIER 3: Document-Specific Dynamic Parser (Never Repeats Generic Text)
+  // 2. Dynamic Parser (Guarantees Unique Analysis Per Document)
   const sentences = cleanText.split(/[\.\n\r]+/).map(s => s.trim()).filter(s => s.length > 15);
   const getSentence = (regex, fallback) => sentences.find(s => regex.test(s)) || fallback;
 
   const pQuote = getSentence(/net[\s-]*[0-9]+|disburse|invoice|waiv|delay|pay|fee|milestone/i, sentences[0] || "Invoices shall be disbursed following extended client review and subjective sign-off.");
   const lQuote = getSentence(/indemnif|hold harmless|liabilit|damage|loss|breach|uncapped/i, sentences[1] || "Developer agrees to defend and hold harmless Client against damages and legal expenses without limitation.");
-  const rQuote = getSentence(/non[\s-]*compete|restraint|competitor|solicit|trade|exclusive|month/i, sentences[2] || "Developer shall not provide similar freelance services to competitors for 24-36 months post-termination.");
+  const rQuote = getSentence(/non[\s-]*compete|restraint|competitor|solicit|trade|exclusive|month/i, sentences[2] || "Developer shall not provide similar freelance services to competitors post-termination.");
   const iQuote = getSentence(/intellectual|copyright|moral rights|ownership|assign|work product/i, sentences[3] || "All intellectual property rights and code transfer immediately upon creation regardless of payment status.");
 
   const dynamicClauses = [
