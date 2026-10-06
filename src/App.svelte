@@ -392,8 +392,8 @@
   </nav>
 
   <div class="tabs">
-    <button class:active={tab === "audit"} on:click={() => (tab = "audit")}>Document Audit</button>
-    <button class:active={tab === "pricing"} on:click={() => (tab = "pricing")}>Pricing / Store</button>
+    <button class:active={tab === "audit"} on:click={() => (tab = "audit")}><span class="long">Document Audit</span><span class="short">Audit</span></button>
+    <button class:active={tab === "pricing"} on:click={() => (tab = "pricing")}><span class="long">Pricing / Store</span><span class="short">Pricing</span></button>
     <button class:active={tab === "account"} on:click={() => (tab = "account")}>Account</button>
   </div>
 
@@ -635,7 +635,7 @@
   }
 
   .tabs { display: flex; gap: 6px; margin-top: 12px; overflow-x: auto; }
-  .tabs button { flex: 1; white-space: nowrap; padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); background: transparent; color: #9aa4b5; font: inherit; cursor: pointer; }
+  .tabs button { flex: 1 1 0; min-width: 0; white-space: nowrap; padding: 9px 6px; font-size: 0.9rem; text-align: center; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); background: transparent; color: #9aa4b5; font-family: inherit; cursor: pointer; }
   .tabs button.active { color: #fff; background: rgba(109, 94, 252, 0.22); border-color: rgba(109, 94, 252, 0.55); }
   .hero { text-align: center; padding: 22px 0 10px; }
   .hero h1 { margin: 0 0 8px; font-size: 1.7rem; line-height: 1.2; }
