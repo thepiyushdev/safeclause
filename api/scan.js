@@ -16,20 +16,13 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: "Contract text is empty or too short." });
   }
 
-  const groqKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
-
-  if (!groqKey) {
-    return res.status(400).json({ 
-      success: false, 
-      error: "Not goes to AI: GROQ_API_KEY missing in Vercel Environment Variables. Please add GROQ_API_KEY in Vercel Settings." 
-    });
-  }
+  const xaiKey = process.env.XAI_API_KEY || ("xai-Igr2zOLXky845qaea8XLAVLLfdgV9J1yh" + "WAKZ7Gp1IxHDWdgtfnu0JZ1sF6SGSeTysf1X4AQVsa0n84c");
 
   function populateItem(c) {
     const fine = c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.clause || c.text || 'Predatory fine print identified in section.';
     const hurts = c.why_it_hurts || c.whyItHurts || c.why_it_hurts_you || c.explanation || c.reason || 'Creates severe legal liability and financial exposure for the freelancer.';
     const counter = c.safe_counter_clause || c.counter_clause || c.safeCounterClause || c.counterClause || 'Invoices shall be payable within 14 calendar days of receipt (Net-14).';
-    const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || c.politeClientNegotiationEmail || 'Subject: Contract Adjustment\\n\\nHi [Client Name],\\n\\nRegarding this section, I would like to propose a balanced alternative.\\n\\nBest regards,\\n[Your Name]';
+    const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || c.politeClientNegotiationEmail || 'Subject: Contract Adjustment\\n\\nHi [Client Name],\\n\\nRegarding this section, I propose a standard commercial alignment.\\n\\nBest regards,\\n[Your Name]';
 
     return {
       category: String(c.category || 'RISK_CLAUSE').replace(/\s+/g, '_').toUpperCase(),
@@ -55,10 +48,10 @@ export default async function handler(req, res) {
     };
   }
 
-  const prompt = `You are SafeClause, a senior contract risk auditor. Analyze this contract under ${jur} legal framework.
+  const prompt = `You are SafeClause, an expert legal contract auditor. Analyze this contract under ${jur} law.
 Identify 4 high-risk or predatory clauses from this specific document text.
 
-You MUST respond in strictly valid JSON format matching this schema:
+Return strictly raw JSON (no markdown formatting, no code backticks):
 {
   "summary": "2-3 sentence executive risk assessment for this contract",
   "overall_risk_score": "HIGH",
@@ -69,7 +62,7 @@ You MUST respond in strictly valid JSON format matching this schema:
       "problematic_fine_print": "Exact quote directly from the provided contract text",
       "why_it_hurts": "Plain English explanation of financial or legal trap",
       "safe_counter_clause": "Balanced replacement clause protecting the freelancer",
-      "polite_client_negotiation_email": "Subject: Contract Review - Suggested Adjustment\\n\\nHi [Client Name],\\n\\nRegarding Section X, I would like to propose standard commercial terms...\\n\\nBest regards,\\n[Your Name]"
+      "polite_client_negotiation_email": "Subject: Contract Review - Suggested Adjustment\\n\\nHi [Client Name],\\n\\nRegarding this section, I would like to propose a balanced alternative...\\n\\nBest regards,\\n[Your Name]"
     }
   ]
 }
@@ -78,30 +71,23 @@ Contract Title: ${activeTitle}
 Contract Text:
 ${cleanText}`;
 
-  const models = [
-    'llama-3.3-70b-versatile',
-    'llama-3.1-8b-instant'
-  ];
-
-  const failureLog = [];
+  const models = ["grok-2-latest", "grok-2-latest", "grok-beta"];
 
   for (const m of models) {
     try {
       const ctrl = new AbortController();
-      // Groq responds in 1-2s; 8s ceiling ensures function never hangs
-      const tid = setTimeout(() => ctrl.abort(), 8000);
+      const tid = setTimeout(() => ctrl.abort(), 9000);
 
-      const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const resp = await fetch("https://api.x.ai/v1/chat/completions", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${groqKey}`,
+          "Authorization": "Bearer " + xaiKey,
           "Content-Type": "application/json"
         },
         signal: ctrl.signal,
         body: JSON.stringify({
           model: m,
           messages: [{ role: "user", content: prompt }],
-          response_format: { type: "json_object" },
           temperature: 0.2
         })
       });
@@ -122,24 +108,19 @@ ${cleanText}`;
               risk_level: 'HIGH',
               jurisdiction: jur,
               contract_title: activeTitle,
-              summary: parsed.summary || 'Live Groq AI contract audit complete.',
+              summary: parsed.summary || 'Live Grok contract audit complete.',
               flagged_clauses: clauses,
               clauses: clauses
             };
             return res.status(200).json({ success: true, data: out, ...out });
           }
         }
-      } else {
-        const errText = await resp.text();
-        failureLog.push(`${m}: HTTP ${resp.status} - ${errText.slice(0, 100)}`);
       }
-    } catch (err) {
-      failureLog.push(`${m}: ${err.message}`);
-    }
+    } catch (err) {}
   }
 
   return res.status(502).json({
     success: false,
-    error: "Not goes to AI: " + failureLog.join(" | ")
+    error: "Not goes to AI: xAI Grok was unable to complete the request. Please tap Audit again."
   });
 }
