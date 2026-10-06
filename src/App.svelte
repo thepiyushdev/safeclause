@@ -267,6 +267,15 @@
   let auditTimerSeconds = 0;
   let timerInterval = null;
 
+  
+  function handleUnlock() {
+    if (typeof handlePayment === 'function') {
+      handlePayment();
+    } else {
+      hasUnlocked = true;
+    }
+  }
+
   async function handleAudit() {
     if (!contractText.trim()) {
       errorMessage = 'Please enter contract text or select a sample.';
