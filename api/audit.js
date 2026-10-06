@@ -18,40 +18,54 @@ export default async function handler(req, res) {
 
   const groqKey = process.env.GROQ_API_KEY || ("gsk_SFxd0bA0OeFel99YtEwNWGdy" + "b3FYUZGug06KSjVsEfMwsnqKtNgZ");
 
+  function formatStr(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/\\n/g, '\n')
+      .replace(/\\"/g, '"')
+      .trim();
+  }
+
   function populateItem(c) {
-    const fine = c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.clause || c.text || 'Predatory fine print identified in section.';
-    const hurts = c.why_it_hurts || c.whyItHurts || c.why_it_hurts_you || c.explanation || c.reason || 'Creates severe legal liability and financial exposure for the freelancer.';
-    const counter = c.safe_counter_clause || c.counter_clause || c.safeCounterClause || c.counterClause || 'Invoices shall be payable within 14 calendar days of receipt (Net-14).';
-    const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || c.politeClientNegotiationEmail || 'Subject: Contract Adjustment\\n\\nHi [Client Name],\\n\\nRegarding this section, I would like to propose a standard commercial alignment.\\n\\nBest regards,\\n[Your Name]';
+    const fine = formatStr(c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.clause || 'Unfavorable contract clause identified.');
+    const hurts = formatStr(c.why_it_hurts || c.whyItHurts || c.why_it_hurts_you || c.explanation || 'Places severe liability and commercial exposure on the contractor.');
+    const counter = formatStr(c.safe_counter_clause || c.counter_clause || c.safeCounterClause || c.counterClause || 'Invoices shall be payable strictly within 14 calendar days of issuance.');
+    
+    let email = formatStr(c.polite_client_negotiation_email || c.negotiation_email || c.email || c.politeClientNegotiationEmail);
+    if (!email || email.length < 40) {
+      email = "Subject: Contract Review - Suggested Adjustment\n\nHi [Client Name],\n\nThank you for sending the agreement! I have reviewed the terms and look forward to working together.\n\nRegarding this specific clause, I would like to propose updating the language to standard commercial terms to keep our agreement balanced:\n\n\"" + counter + "\"\n\nPlease let me know if this works for you.\n\nBest regards,\n[Your Name]";
+    }
 
     return {
       category: String(c.category || 'RISK_CLAUSE').replace(/\s+/g, '_').toUpperCase(),
       risk_level: String(c.risk_level || c.riskLevel || c.severity || 'HIGH').replace(/\s*RISK/i, ''),
       problematic_fine_print: fine,
       fine_print: fine,
-      problematicFinePrint: fine,
-      finePrint: fine,
-      quote: fine,
-      clause: fine,
       why_it_hurts: hurts,
       whyItHurts: hurts,
-      why_it_hurts_you: hurts,
-      explanation: hurts,
       safe_counter_clause: counter,
-      safeCounterClause: counter,
       counter_clause: counter,
-      counterClause: counter,
       polite_client_negotiation_email: email,
-      politeClientNegotiationEmail: email,
-      negotiation_email: email,
-      email: email
+      negotiation_email: email
     };
   }
 
-  const prompt = `You are SafeClause, a senior contract risk auditor. Analyze this contract under ${jur} legal framework.
-Identify 4 high-risk or predatory clauses from this specific document text.
+  const prompt = `You are SafeClause, a senior contract risk attorney. Analyze this contract under ${jur} legal framework.
+Identify 4 predatory, one-sided, or high-risk clauses from this specific document text.
 
-You MUST respond in strictly valid JSON format matching this schema:
+CRITICAL INSTRUCTIONS:
+1. "problematic_fine_print": Must be an EXACT verbatim quote extracted directly from the contract text.
+2. "why_it_hurts": Clear 2-3 sentence breakdown of the financial or legal trap.
+3. "safe_counter_clause": Must be ACTUAL binding legal replacement contract clause text (ready to paste directly into the agreement, NOT general advice).
+4. "polite_client_negotiation_email": Write a complete, respectful, highly persuasive negotiation email.
+   - Professional Subject line (e.g. Subject: Contract Review - Suggested Adjustment to Payment Terms)
+   - Warm greeting ("Hi [Client Name],")
+   - Respectful explanation of why this clause creates friction
+   - Clearly proposed safe replacement clause
+   - Collaborative sign-off ("Best regards,\\n[Your Name]")
+   DO NOT return 2-line placeholder templates. Tailor the email directly to the exact quote.
+
+Respond strictly in valid raw JSON:
 {
   "summary": "2-3 sentence executive risk assessment for this contract",
   "overall_risk_score": "HIGH",
@@ -59,10 +73,10 @@ You MUST respond in strictly valid JSON format matching this schema:
     {
       "category": "PAYMENT_TERMS",
       "risk_level": "HIGH",
-      "problematic_fine_print": "Exact quote directly from the provided contract text",
+      "problematic_fine_print": "Exact quote from contract text",
       "why_it_hurts": "Plain English explanation of financial or legal trap",
-      "safe_counter_clause": "Balanced replacement clause protecting the freelancer",
-      "polite_client_negotiation_email": "Subject: Contract Review - Suggested Adjustment\\n\\nHi [Client Name],\\n\\nRegarding Section X, I would like to propose standard commercial terms...\\n\\nBest regards,\\n[Your Name]"
+      "safe_counter_clause": "Invoices shall be payable within 14 calendar days of issuance...",
+      "polite_client_negotiation_email": "Subject: Contract Review - Payment Terms\\n\\nHi [Client Name],\\n\\nThank you for sending the agreement. I am excited to collaborate on this engagement!\\n\\nRegarding the payment terms in Section 1, the Net-90 timeline creates significant project financing friction. Standard commercial terms for digital services operate on Net-14 upon milestone sign-off.\\n\\nCould we align on the following language instead?\\n\"Invoices shall be payable within 14 calendar days of issuance.\"\\n\\nPlease let me know if this adjustment works for you.\\n\\nBest regards,\\n[Your Name]"
     }
   ]
 }
@@ -71,7 +85,13 @@ Contract Title: ${activeTitle}
 Contract Text:
 ${cleanText}`;
 
-  const models = ["allam-2-7b","qwen/qwen3.8-27b","openai/gpt-oss-20b"];
+  const models = [
+    'llama-3.3-70b-versatile',
+    'llama-3.1-8b-instant',
+    'openai/gpt-oss-120b',
+    'meta-llama/llama-4-scout-17b-16e-instruct'
+  ];
+
   const failureLog = [];
 
   for (const m of models) {
