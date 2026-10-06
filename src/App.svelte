@@ -9,8 +9,8 @@
   const UPI_ID = "8796021247@fam";
   const MAX_CHARS = 10000;
   const PACKS = [
-    { id: 1, credits: 1, price: 49, name: "Single Fix", note: "1 clause fix + negotiation email" },
-    { id: 3, credits: 3, price: 129, name: "Popular Pack", note: "3 unlocks, save ₹18" },
+    { id: 1, credits: 1, price: 49, name: "Single Contract", note: "1 full contract unlock" },
+    { id: 3, credits: 3, price: 129, name: "Popular Pack", note: "3 full contracts, save ₹18" },
   ];
   const PLACEHOLDER =
     "The Contractor shall invoice the Client upon delivery and the Client shall pay each invoice within fourteen (14) days. Late amounts accrue interest. Liability is limited to the fees paid under this Agreement. Ownership of all deliverables transfers only after payment in full.";
@@ -51,8 +51,8 @@
   let error = "";
   let result = null;
   let unlockedData = {};
-  let unlockErrors = {};
-  let unlocking = -1;
+  let unlockError = "";
+  let unlocking = false;
   let copied = "";
   let pdfBusy = false;
   let pdfInput;
@@ -191,7 +191,7 @@
   async function signOut() {
     if (sb) await sb.auth.signOut();
     unlockedData = {};
-    unlockErrors = {};
+    unlockError = "";
     tab = "audit";
   }
 
@@ -250,7 +250,7 @@
     loading = true;
     result = null;
     unlockedData = {};
-    unlockErrors = {};
+    unlockError = "";
     try {
       const r = await fetch("/api/audit", {
         method: "POST",
@@ -267,35 +267,38 @@
     }
   }
 
-  function setUnlockError(i, msg) {
-    unlockErrors = Object.assign({}, unlockErrors, { [i]: msg });
-  }
-
-  async function unlock(i) {
+  // 1 credit unlocks EVERY flagged clause of this audit in a single request.
+  async function unlockAll() {
     error = "";
     if (!user) { openAuth("login", "Log in to unlock. Your credits are saved to your account."); return; }
     if (credits < 1) { openPay(1); return; }
-    unlocking = i;
-    setUnlockError(i, "");
+    if (flagged.length === 0 || unlocking) return;
+    unlocking = true;
+    unlockError = "";
     try {
       const headers = await authHeaders();
       if (headers.Authorization === "Bearer ") throw new Error("Session expired. Please log in again.");
+      const tokens = flagged.map(function (c) { return c.locked_token; });
       const r = await fetch("/api/unlock", {
         method: "POST",
         headers: headers,
-        body: JSON.stringify({ token: flagged[i].locked_token }),
+        body: JSON.stringify({ tokens: tokens }),
       });
       const data = await readJson(r);
       if (r.status === 401) throw new Error("Session expired. Please log in again.");
-      if (!r.ok || !data.safe_counter_clause) throw new Error(data.error || "Unlock failed (HTTP " + r.status + ").");
-      unlockedData = Object.assign({}, unlockedData, { [i]: data });
+      if (!r.ok || !data.success || !Array.isArray(data.unlocked)) {
+        throw new Error(data.error || "Unlock failed (HTTP " + r.status + ").");
+      }
+      const map = {};
+      data.unlocked.forEach(function (u) { map[u.index] = u; });
+      unlockedData = map;
       credits = data.credits;
     } catch (err) {
       let msg = err && err.message ? err.message : "Unlock failed.";
       if (err instanceof TypeError) msg = "Network error. Check your connection and try again.";
-      setUnlockError(i, msg);
+      unlockError = msg;
     } finally {
-      unlocking = -1;
+      unlocking = false;
     }
   }
 
@@ -401,7 +404,7 @@
     {#if tab === "audit"}
       <section class="hero">
         <h1>Spot the contract traps <span class="grad">before you sign</span></h1>
-        <p>AI risk audit for freelancers. See the danger free, unlock the fix with a credit.</p>
+        <p>AI risk audit for freelancers. See the danger free, unlock every fix with 1 credit.</p>
       </section>
 
       <section class="glass card">
@@ -470,17 +473,17 @@
                 <div class="lock-overlay">
                   <div class="lock-card">
                     <div class="lock-title">🔒 Counter-Clause &amp; Negotiation Email Locked</div>
-                    <button class="btn primary block" on:click={() => unlock(i)} disabled={unlocking === i}>
-                      {#if unlocking === i}
-                        Unlocking...
+                    <button class="btn primary block" on:click={unlockAll} disabled={unlocking}>
+                      {#if unlocking}
+                        Unlocking all clauses...
                       {:else if credits < 1}
-                        Unlock for ₹49 (Buy 1 Credit) ⚡
+                        Unlock All Clauses for ₹49 (Get 1 Credit) ⚡
                       {:else}
-                        Use 1 Credit to Unlock (Balance: {credits}) ⚡
+                        Use 1 Credit to Unlock All Clauses (Balance: {credits}) ⚡
                       {/if}
                     </button>
-                    {#if unlockErrors[i]}
-                      <div class="error" role="alert">⚠️ {unlockErrors[i]}</div>
+                    {#if unlockError}
+                      <div class="error" role="alert">⚠️ {unlockError}</div>
                     {/if}
                   </div>
                 </div>
@@ -497,7 +500,7 @@
     {:else if tab === "pricing"}
       <section class="hero">
         <h1>Buy <span class="grad">credits</span></h1>
-        <p>1 credit = 1 full clause fix + negotiation email unlock.</p>
+        <p>1 credit = 1 full contract unlock (all counter-clauses + negotiation emails)</p>
       </section>
       <div class="packs">
         {#each PACKS as p}
@@ -588,6 +591,7 @@
           <button class="btn sm" class:accent={packId === p.id} on:click={() => (packId = p.id)}>{p.credits} Credit{p.credits === 1 ? "" : "s"} • ₹{p.price}</button>
         {/each}
       </div>
+      <p class="muted">1 credit = 1 full contract unlock (all counter-clauses + negotiation emails)</p>
 
       <h3>Step 1: Pay ₹{pack.price}</h3>
       <a class="btn primary block upi" href={upiLink}>Tap to Pay with UPI ⚡</a>

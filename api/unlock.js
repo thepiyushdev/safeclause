@@ -1,9 +1,11 @@
 import crypto from "node:crypto";
-// api/unlock.js - server-side paywall. Uses plain PostgREST calls, no RPC functions needed.
+// api/unlock.js - server-side paywall. 1 credit unlocks every token sent in the batch.
 
 const SB_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+// One audit never has more than 6 clauses, so one credit can never unlock more than one document's worth.
+const MAX_TOKENS = 6;
 
 // IMPORTANT: this function must stay identical in api/audit.js and api/unlock.js.
 function getSecret() {
@@ -84,18 +86,29 @@ async function handler(req, res) {
   if (typeof body === "string") { try { body = JSON.parse(body); } catch (e) { body = {}; } }
   body = body || {};
 
+  // Accept { tokens: [...] } or the older single { token }.
+  const tokens = Array.isArray(body.tokens) ? body.tokens : body.token ? [body.token] : [];
+  if (tokens.length === 0) return res.status(400).json({ error: "No unlock tokens were sent." });
+  if (tokens.length > MAX_TOKENS) return res.status(400).json({ error: "Too many clauses in one unlock." });
+
   try {
     const user = await getUser(req);
     if (!user) return res.status(401).json({ error: "Session expired. Please log in again." });
 
-    const locked = unseal(body.token);
-    if (!locked || !locked.c) {
-      return res.status(400).json({ error: "Invalid unlock token. Run the audit again." });
-    }
-    if (Date.now() - Number(locked.t || 0) > MAX_AGE_MS) {
-      return res.status(400).json({ error: "This unlock token expired. Run the audit again." });
+    // Decrypt EVERYTHING first. If any token is bad, nothing is charged.
+    const items = [];
+    for (let i = 0; i < tokens.length; i++) {
+      const locked = unseal(tokens[i]);
+      if (!locked || !locked.c) {
+        return res.status(400).json({ error: "Invalid unlock token (clause " + (i + 1) + "). Run the audit again." });
+      }
+      if (Date.now() - Number(locked.t || 0) > MAX_AGE_MS) {
+        return res.status(400).json({ error: "This unlock token expired. Run the audit again." });
+      }
+      items.push({ index: i, safe_counter_clause: locked.c, polite_client_negotiation_email: locked.e });
     }
 
+    // Exactly ONE credit, no matter how many clauses are in the batch.
     const spent = await spendOneCredit(user.id);
     if (!spent.ok) {
       if (spent.reason === "nocredits") return res.status(402).json({ error: "You have no credits left. Buy a credit to unlock." });
@@ -103,11 +116,12 @@ async function handler(req, res) {
       return res.status(503).json({ error: "Server is busy. Please try again." });
     }
 
-    return res.status(200).json({
-      safe_counter_clause: locked.c,
-      polite_client_negotiation_email: locked.e,
-      credits: spent.credits,
-    });
+    const out = { success: true, unlocked: items, credits: spent.credits };
+    if (items.length === 1) {
+      out.safe_counter_clause = items[0].safe_counter_clause;
+      out.polite_client_negotiation_email = items[0].polite_client_negotiation_email;
+    }
+    return res.status(200).json(out);
   } catch (e) {
     return res.status(500).json({ error: (e && e.message) || "Unlock failed." });
   }
