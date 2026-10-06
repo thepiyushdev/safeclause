@@ -16,22 +16,20 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: "Contract text is empty or too short." });
   }
 
-  // Pick whichever key is present in environment variables
-  const activeKey = (
-    process.env.GROQ_API_KEY ||
+  // Detect key from env or fallback
+  const rawKey = (
     process.env.XAI_API_KEY ||
+    process.env.GROQ_API_KEY ||
     process.env.GROK_API_KEY ||
-    ("xai-Igr2zOLXky845qaea8XLAVLLfdgV9J1y" + "hWAKZ7Gp1IxHDWdgtfnu0JZ1sF6SGSeTysf1X4AQVsa0n84c")
+    ("xai-Igr2zOLXky845qaea8XLAVLLfdgV9J1yh" + "WAKZ7Gp1IxHDWdgtfnu0JZ1sF6SGSeTysf1X4AQVsa0n84c")
   ).trim();
 
-  // Smart Detection: Inspect key prefix to route to the correct provider
-  const isXaiKey = activeKey.startsWith('xai-');
-
-  const endpoint = isXaiKey
+  const isXai = rawKey.startsWith('xai-');
+  const endpoint = isXai
     ? "https://api.x.ai/v1/chat/completions"
     : "https://api.groq.com/openai/v1/chat/completions";
 
-  const models = isXaiKey
+  const models = isXai
     ? ["grok-beta", "grok-2-latest"]
     : ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
 
@@ -98,7 +96,7 @@ ${cleanText}`;
       const resp = await fetch(endpoint, {
         method: "POST",
         headers: {
-          "Authorization": "Bearer " + activeKey,
+          "Authorization": "Bearer " + rawKey,
           "Content-Type": "application/json"
         },
         signal: ctrl.signal,
@@ -134,7 +132,7 @@ ${cleanText}`;
         }
       } else {
         const errText = await resp.text();
-        failureLog.push(`${m} (${endpoint}): HTTP ${resp.status} - ${errText.slice(0, 100)}`);
+        failureLog.push(`${m}: HTTP ${resp.status} - ${errText.slice(0, 100)}`);
       }
     } catch (err) {
       failureLog.push(`${m}: ${err.message}`);

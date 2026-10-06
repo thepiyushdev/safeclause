@@ -307,13 +307,13 @@
         }, 100);
       } else {
         auditResult = null;
-        errorMessage = json.error || 'Not goes to AI: Groq analysis failed.';
+        errorMessage = json.error || 'Not goes to AI: Analysis failed.';
       }
     } catch (err) {
       clearTimeout(timer);
       auditResult = null;
       if (err.name === 'AbortError') {
-        errorMessage = 'Not goes to AI: Request timed out. Please tap Audit again.';
+        errorMessage = 'Not goes to AI: Request timed out. Tap Audit again.';
       } else {
         errorMessage = err.message.startsWith('Not goes to AI') ? err.message : 'Not goes to AI: ' + err.message;
       }
@@ -413,12 +413,7 @@
         </div>
       {:else}
         <button class="btn-nav-quick" on:click={() => navigateTo('audit')}>Try Free</button>
-
-            {#if errorMessage}
-              <div class="ai-not-goes-error" style="margin-top: 16px; border: 1.5px solid #ef4444; background: rgba(239, 68, 68, 0.12); color: #fca5a5; padding: 14px; border-radius: 10px; font-weight: 700; text-align: center; font-size: 0.95rem; line-height: 1.4;">
-                ⚠️ {errorMessage}
-              </div>
-            {/if}
+              
       {/if}
       <button class="hamburger-btn" on:click={() => { mobileMenuOpen = !mobileMenuOpen; }} aria-label="Menu">
         {mobileMenuOpen ? '✕' : '☰'}
