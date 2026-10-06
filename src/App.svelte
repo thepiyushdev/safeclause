@@ -276,8 +276,8 @@
     hasUnlocked = false;
 
     const controller = new AbortController();
-    // 20 seconds timeout gives AI plenty of time to finish streaming
-    const timer = setTimeout(() => controller.abort(), 20000);
+    // 2 minutes (120 seconds) timeout as requested
+    const timer = setTimeout(() => controller.abort(), 120000);
 
     try {
       const res = await fetch("/api/audit", {
@@ -305,7 +305,7 @@
       clearTimeout(timer);
       auditResult = null;
       if (err.name === 'AbortError') {
-        errorMessage = 'Not goes to AI: Server took too long to respond. Please tap Audit again.';
+        errorMessage = 'Not goes to AI: Request timed out after 2 minutes. Please try again.';
       } else {
         errorMessage = 'Not goes to AI: Connection error (' + err.message + ')';
       }
