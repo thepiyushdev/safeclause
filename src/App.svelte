@@ -276,7 +276,8 @@
     hasUnlocked = false;
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
+    // 20 seconds timeout gives AI plenty of time to finish streaming
+    const timer = setTimeout(() => controller.abort(), 20000);
 
     try {
       const res = await fetch("/api/audit", {
@@ -298,15 +299,15 @@
         }, 100);
       } else {
         auditResult = null;
-        errorMessage = json.error || 'Not goes to AI: AI processing failed.';
+        errorMessage = json.error || 'Not goes to AI: AI analysis failed.';
       }
     } catch (err) {
       clearTimeout(timer);
       auditResult = null;
       if (err.name === 'AbortError') {
-        errorMessage = 'Not goes to AI: Request timed out after 8 seconds. Please try again.';
+        errorMessage = 'Not goes to AI: Server took too long to respond. Please tap Audit again.';
       } else {
-        errorMessage = 'Not goes to AI: Network error (' + err.message + ')';
+        errorMessage = 'Not goes to AI: Connection error (' + err.message + ')';
       }
     } finally {
       loading = false;
