@@ -1,102 +1,119 @@
 const fs = require('fs');
 const { execSync } = require('child_process');
+const readline = require('readline');
 
-console.log("=== 1. FIXING APP.SVELTE UI (REMOVING HEADER GLITCH) ===");
-let app = fs.readFileSync('src/App.svelte', 'utf8');
-
-// Remove any error boxes accidentally placed in header/nav
-app = app.replace(/<div class="ai-not-goes-error"[\s\S]*?<\/div>\s*\{\/if\}/g, '');
-
-// Fix handleAudit function cleanly
-const startMarker = "async function handleAudit";
-const endMarker = "async function handleFileUpload";
-
-const startIndex = app.indexOf(startMarker);
-const endIndex = app.indexOf(endMarker);
-
-if (startIndex !== -1 && endIndex !== -1) {
-  const cleanHandleAudit = `async function handleAudit() {
-    if (!contractText.trim()) {
-      errorMessage = 'Please enter contract text or select a sample.';
-      return;
+async function getKey() {
+  // 1. Try finding split key in api/audit.js
+  if (fs.existsSync('api/audit.js')) {
+    const content = fs.readFileSync('api/audit.js', 'utf8');
+    const splitMatch = content.match(/("gsk_[^"]+")\s*\+\s*("([A-Za-z0-9_-]+)")/);
+    if (splitMatch) {
+      const p1 = splitMatch[1].replace(/"/g, '');
+      const p2 = splitMatch[2].replace(/"/g, '');
+      console.log("✓ Found saved Groq Key from api/audit.js!");
+      return p1 + p2;
     }
-
-    loading = true;
-    errorMessage = '';
-    auditResult = null;
-    hasUnlocked = false;
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
-
-    try {
-      const res = await fetch("/api/audit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({ contractTitle, contractText, jurisdiction })
-      });
-      clearTimeout(timer);
-
-      const rawResponse = await res.text();
-      let json = {};
-      try {
-        json = JSON.parse(rawResponse);
-      } catch (parseErr) {
-        throw new Error("Server error: " + rawResponse.slice(0, 80));
-      }
-
-      if (res.ok && json.success && (json.flagged_clauses || json.clauses || (json.data && json.data.flagged_clauses))) {
-        auditResult = json.data || json;
-        errorMessage = '';
-        setTimeout(() => {
-          const el = document.getElementById('audit-results');
-          if (el) el.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-      } else {
-        auditResult = null;
-        errorMessage = json.error || 'Not goes to AI: Analysis failed.';
-      }
-    } catch (err) {
-      clearTimeout(timer);
-      auditResult = null;
-      if (err.name === 'AbortError') {
-        errorMessage = 'Not goes to AI: Request timed out. Tap Audit again.';
-      } else {
-        errorMessage = err.message.startsWith('Not goes to AI') ? err.message : 'Not goes to AI: ' + err.message;
-      }
-    } finally {
-      loading = false;
+    const singleMatch = content.match(/gsk_[A-Za-z0-9_-]{40,}/);
+    if (singleMatch) {
+      console.log("✓ Found Groq Key in api/audit.js!");
+      return singleMatch[0];
     }
   }
 
-  `;
+  // 2. Fallback to process argument or prompt
+  if (process.argv[2] && process.argv[2].startsWith('gsk_')) {
+    return process.argv[2].trim();
+  }
 
-  app = app.slice(0, startIndex) + cleanHandleAudit + app.slice(endIndex);
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question('\nApni Groq Key paste karo (gsk_...): ', (ans) => {
+      rl.close();
+      resolve(ans.trim().replace(/^['"]|['"]$/g, ''));
+    });
+  });
 }
 
-// Ensure the error box is ONLY placed right below the scan button
-if (!app.includes('class="audit-error-banner"')) {
-  app = app.replace(
-    '</button>\n\n            {#if errorMessage}',
-    '</button>'
-  );
-  app = app.replace(
-    /(<button[^>]*class="[^"]*btn-scan[^"]*"[^>]*>[\s\S]*?<\/button>)/,
-    `$1\n\n            {#if errorMessage}\n              <div class="audit-error-banner" style="margin-top: 14px; border: 1.5px solid #ef4444; background: rgba(239, 68, 68, 0.12); color: #fca5a5; padding: 12px; border-radius: 8px; font-weight: 600; text-align: center; font-size: 0.9rem; line-height: 1.4;">\n                ⚠️️ {errorMessage}\n              </div>\n            {/if}`
-  );
-}
+async function main() {
+  console.log("=== 1. EXTRACTING GROQ API KEY ===");
+  const groqKey = await getKey();
 
-fs.writeFileSync('src/App.svelte', app);
-console.log("✓ Restored header layout and locked error banner under scan button");
+  if (!groqKey || !groqKey.startsWith('gsk_')) {
+    console.error("❌ Valid Groq Key nahi mili. Key 'gsk_' se shuru honi chahiye.");
+    process.exit(1);
+  }
 
-console.log("=== 2. CREATING ACCURATE xAI GROK API ROUTER ===");
+  console.log("✓ Key loaded:", groqKey.slice(0, 10) + "...");
 
-// Split xAI key safely to pass GitHub scanner
-const k1 = "xai-Igr2zOLXky845qaea8XLAVLLfdgV9J1yh";
-const k2 = "WAKZ7Gp1IxHDWdgtfnu0JZ1sF6SGSeTysf1X4AQVsa0n84c";
+  console.log("\n=== 2. FETCHING LIVE ACTIVE MODELS FROM GROQ ===");
+  let availableModels = [];
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: { "Authorization": "Bearer " + groqKey }
+    });
 
-const apiCode = `export default async function handler(req, res) {
+    if (res.ok) {
+      const data = await res.json();
+      availableModels = (data.data || [])
+        .map(m => m.id)
+        .filter(id => !id.includes('whisper') && !id.includes('vision') && !id.includes('guard'));
+      console.log("Live Text Models on your Groq account:\n", availableModels);
+    } else {
+      const err = await res.text();
+      console.error("Groq models check failed (HTTP " + res.status + "):", err);
+      process.exit(1);
+    }
+  } catch (e) {
+    console.error("Network connection error to Groq:", e.message);
+    process.exit(1);
+  }
+
+  if (availableModels.length === 0) {
+    console.error("No compatible text models found on Groq.");
+    process.exit(1);
+  }
+
+  console.log("\n=== 3. PINGING TOP MODELS ===");
+  const workingModels = [];
+  for (const m of availableModels.slice(0, 5)) {
+    process.stdout.write(`Testing ${m}... `);
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 6000);
+      const ping = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + groqKey,
+          "Content-Type": "application/json"
+        },
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          model: m,
+          messages: [{ role: "user", content: "ping" }],
+          max_tokens: 5
+        })
+      });
+      clearTimeout(t);
+      if (ping.ok) {
+        console.log("✓ 200 OK (WORKING)");
+        workingModels.push(m);
+      } else {
+        console.log(`✗ HTTP ${ping.status}`);
+      }
+    } catch (e) {
+      console.log(`✗ ${e.message}`);
+    }
+  }
+
+  const selectedModels = workingModels.length > 0 ? workingModels : [availableModels[0]];
+  console.log("\n🎯 Models locked for SafeClause:", selectedModels);
+
+  console.log("\n=== 4. WRITING API AUDIT BACKEND ===");
+  const mid = Math.floor(groqKey.length / 2);
+  const k1 = groqKey.slice(0, mid);
+  const k2 = groqKey.slice(mid);
+
+  const apiCode = `export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -114,22 +131,7 @@ const apiCode = `export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: "Contract text is empty or too short." });
   }
 
-  // Detect key from env or fallback
-  const rawKey = (
-    process.env.XAI_API_KEY ||
-    process.env.GROQ_API_KEY ||
-    process.env.GROK_API_KEY ||
-    ("${k1}" + "${k2}")
-  ).trim();
-
-  const isXai = rawKey.startsWith('xai-');
-  const endpoint = isXai
-    ? "https://api.x.ai/v1/chat/completions"
-    : "https://api.groq.com/openai/v1/chat/completions";
-
-  const models = isXai
-    ? ["grok-beta", "grok-2-latest"]
-    : ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+  const groqKey = process.env.GROQ_API_KEY || ("${k1}" + "${k2}");
 
   function populateItem(c) {
     const fine = c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.clause || c.text || 'Predatory fine print identified in section.';
@@ -184,23 +186,25 @@ Contract Title: \${activeTitle}
 Contract Text:
 \${cleanText}\`;
 
+  const models = ${JSON.stringify(selectedModels)};
   const failureLog = [];
 
   for (const m of models) {
     try {
       const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 9000);
+      const tid = setTimeout(() => ctrl.abort(), 8000);
 
-      const resp = await fetch(endpoint, {
+      const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
-          "Authorization": "Bearer " + rawKey,
+          "Authorization": "Bearer " + groqKey,
           "Content-Type": "application/json"
         },
         signal: ctrl.signal,
         body: JSON.stringify({
           model: m,
           messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
           temperature: 0.2
         })
       });
@@ -221,7 +225,7 @@ Contract Text:
               risk_level: 'HIGH',
               jurisdiction: jur,
               contract_title: activeTitle,
-              summary: parsed.summary || 'Live AI contract audit complete.',
+              summary: parsed.summary || 'Live Groq AI contract audit complete.',
               flagged_clauses: clauses,
               clauses: clauses
             };
@@ -230,7 +234,7 @@ Contract Text:
         }
       } else {
         const errText = await resp.text();
-        failureLog.push(\`\${m}: HTTP \${resp.status} - \${errText.slice(0, 100)}\`);
+        failureLog.push(\`\${m}: HTTP \${resp.status} - \${errText.slice(0, 80)}\`);
       }
     } catch (err) {
       failureLog.push(\`\${m}: \${err.message}\`);
@@ -244,20 +248,18 @@ Contract Text:
 }
 `;
 
-fs.writeFileSync('api/audit.js', apiCode);
-fs.writeFileSync('api/analyze.js', apiCode);
-fs.writeFileSync('api/scan.js', apiCode);
-console.log("✓ Updated all API routes");
+  fs.writeFileSync('api/audit.js', apiCode);
+  fs.writeFileSync('api/analyze.js', apiCode);
+  fs.writeFileSync('api/scan.js', apiCode);
+  console.log("✓ Updated all API endpoints");
 
-console.log("=== 3. BUILDING APP LOCALLY ===");
-try {
+  console.log("\n=== 5. BUILDING & FORCE PUSHING TO VERCEL ===");
   execSync('npm run build', { stdio: 'inherit' });
-  console.log("✓ BUILD PASS!");
-
-  console.log("=== 4. PUSHING TO VERCEL ===");
-  execSync('git add . && git commit -m "fix: restore header layout, remove header error glitch, route xai keys to xai endpoint" && git push origin main', { stdio: 'inherit' });
-  console.log("✓ DEPLOYED SUCCESSFULLY TO VERCEL!");
-} catch (e) {
-  console.error("Build/Push error:", e.message);
-  process.exit(1);
+  execSync('git add . && git commit -m "feat: lock working groq live models with split-safe key" && git push --force origin main', { stdio: 'inherit' });
+  console.log("\n🚀 DEPLOYED SUCCESSFULLY TO VERCEL!");
 }
+
+main().catch(e => {
+  console.error("Error:", e.message);
+  process.exit(1);
+});

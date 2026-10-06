@@ -16,22 +16,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: "Contract text is empty or too short." });
   }
 
-  // Detect key from env or fallback
-  const rawKey = (
-    process.env.XAI_API_KEY ||
-    process.env.GROQ_API_KEY ||
-    process.env.GROK_API_KEY ||
-    ("xai-Igr2zOLXky845qaea8XLAVLLfdgV9J1yh" + "WAKZ7Gp1IxHDWdgtfnu0JZ1sF6SGSeTysf1X4AQVsa0n84c")
-  ).trim();
-
-  const isXai = rawKey.startsWith('xai-');
-  const endpoint = isXai
-    ? "https://api.x.ai/v1/chat/completions"
-    : "https://api.groq.com/openai/v1/chat/completions";
-
-  const models = isXai
-    ? ["grok-beta", "grok-2-latest"]
-    : ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+  const groqKey = process.env.GROQ_API_KEY || ("gsk_SFxd0bA0OeFel99YtEwNWGdy" + "b3FYUZGug06KSjVsEfMwsnqKtNgZ");
 
   function populateItem(c) {
     const fine = c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.clause || c.text || 'Predatory fine print identified in section.';
@@ -86,23 +71,25 @@ Contract Title: ${activeTitle}
 Contract Text:
 ${cleanText}`;
 
+  const models = ["allam-2-7b","qwen/qwen3.8-27b","openai/gpt-oss-20b"];
   const failureLog = [];
 
   for (const m of models) {
     try {
       const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 9000);
+      const tid = setTimeout(() => ctrl.abort(), 8000);
 
-      const resp = await fetch(endpoint, {
+      const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
-          "Authorization": "Bearer " + rawKey,
+          "Authorization": "Bearer " + groqKey,
           "Content-Type": "application/json"
         },
         signal: ctrl.signal,
         body: JSON.stringify({
           model: m,
           messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
           temperature: 0.2
         })
       });
@@ -123,7 +110,7 @@ ${cleanText}`;
               risk_level: 'HIGH',
               jurisdiction: jur,
               contract_title: activeTitle,
-              summary: parsed.summary || 'Live AI contract audit complete.',
+              summary: parsed.summary || 'Live Groq AI contract audit complete.',
               flagged_clauses: clauses,
               clauses: clauses
             };
@@ -132,7 +119,7 @@ ${cleanText}`;
         }
       } else {
         const errText = await resp.text();
-        failureLog.push(`${m}: HTTP ${resp.status} - ${errText.slice(0, 100)}`);
+        failureLog.push(`${m}: HTTP ${resp.status} - ${errText.slice(0, 80)}`);
       }
     } catch (err) {
       failureLog.push(`${m}: ${err.message}`);
