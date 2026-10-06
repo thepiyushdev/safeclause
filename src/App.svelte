@@ -275,12 +275,17 @@
     auditResult = null;
     hasUnlocked = false;
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+
     try {
       const res = await fetch("/api/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({ contractTitle, contractText, jurisdiction })
       });
+      clearTimeout(timer);
 
       const json = await res.json();
 
@@ -293,11 +298,16 @@
         }, 100);
       } else {
         auditResult = null;
-        errorMessage = json.error || 'Not goes to AI: AI processing failed or rejected.';
+        errorMessage = json.error || 'Not goes to AI: AI processing failed.';
       }
     } catch (err) {
+      clearTimeout(timer);
       auditResult = null;
-      errorMessage = 'Not goes to AI: Network connection error (' + err.message + ')';
+      if (err.name === 'AbortError') {
+        errorMessage = 'Not goes to AI: Request timed out after 8 seconds. Please try again.';
+      } else {
+        errorMessage = 'Not goes to AI: Network error (' + err.message + ')';
+      }
     } finally {
       loading = false;
     }
