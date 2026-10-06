@@ -1,180 +1,168 @@
-import { createClient } from '@supabase/supabase-js';
+import crypto from "node:crypto";
+// api/verify-payment.js - UPI screenshot verification with Gemini
 
-const supabaseUrl = "https://cetzbjzpgomuvgrcggjs.supabase.co";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+const SB_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
+const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const RECEIVER_ID = "8796021247@fam";
+const RECEIVER_DIGITS = "8796021247";
+const PACKS = { 1: { amount: 49, credits: 1 }, 3: { amount: 129, credits: 3 } };
+const MAX_B64 = 3000000;
+const MODELS = Array.from(
+  new Set([process.env.GEMINI_MODEL, "gemini-3.1-flash-lite", "gemini-3-flash-preview", "gemini-flash-latest", "gemini-2.5-flash"].filter(Boolean))
+);
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+const PROMPT = [
+  "You are verifying a UPI payment screenshot from an Indian payment app (GPay, PhonePe, Paytm, BHIM, etc).",
+  "Read the image and return ONE JSON object only, no markdown:",
+  '{"is_payment_screenshot": true|false,',
+  ' "status": "success" | "failed" | "pending" | "unknown",',
+  ' "amount": number or null (rupees paid),',
+  ' "receiver_upi_id": string or null,',
+  ' "receiver_name": string or null,',
+  ' "transaction_id": string or null (UPI transaction ID / UTR / Google transaction ID, exactly as shown),',
+  ' "paid_at": string or null (ISO 8601 date-time if a date and time are visible),',
+  ' "suspicious": true|false (true if the image looks edited, cropped to hide details, or is not a real payment receipt),',
+  ' "notes": short string}',
+  "Only report what is visible. Never guess missing values; use null.",
+].join("\n");
 
-  const { imageBase64, expectedPrice, planName, userId } = req.body;
-
-  if (!imageBase64) {
-    return res.status(400).json({ error: 'Payment screenshot is required.' });
-  }
-
-  const geminiKey = process.env.GEMINI_API_KEY;
-  if (!geminiKey) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY is missing in Vercel settings.' });
-  }
-
-  const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-
-  // Full Multimodal Models Fallback Chain
-  const visionFallbackChain = [
-    'gemini-3.8-flash',
-    'gemini-3.5-flash-lite',
-    'gemini-3.5-flash',
-    'gemini-3.7-flash',
-    'gemini-3.6-flash',
-    'gemini-3.1-pro-preview',
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
-    'gemini-2.0-flash'
-  ];
-
-  const promptText = `You are a strict Indian payment verification auditor.
-Inspect the attached UPI payment screenshot (FamPay, Paytm, PhonePe, Google Pay, GPay, BHIM, Bank).
-
-Verification Rules:
-1. Payee Verification: Must match "Ashok Ray" (allow minor case differences).
-2. Amount Verification: Must be EQUAL TO OR GREATER THAN ${expectedPrice} INR. If the screenshot shows 1 INR or any amount below ${expectedPrice}, amount_valid must be FALSE.
-3. Status: Must clearly show SUCCESS, PAID, or COMPLETED.
-4. Extract 12-digit UPI Reference / UTR Number.
-
-Return ONLY a clean JSON object with no markdown formatting:
-{
-  "is_valid_receipt": true,
-  "status_success": true,
-  "payee_name": "detected payee name",
-  "payee_matches": true,
-  "amount_paid": 49,
-  "amount_valid": true,
-  "utr_number": "12-digit string or null",
-  "rejection_reason": null
-}`;
-
-  let parsedContent = null;
-  let activeModelUsed = '';
-  let modelErrors = [];
-
-  // Sequential Fallback Execution
-  for (const model of visionFallbackChain) {
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: promptText },
-              { inline_data: { mime_type: 'image/jpeg', data: base64Data } }
-            ]
-          }],
-          generationConfig: {
-            temperature: 0.1,
-            response_mime_type: 'application/json'
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        modelErrors.push(`${model}: ${errJson.error?.message || response.statusText}`);
-        continue; // Move to next fallback model
-      }
-
-      const data = await response.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (rawText) {
-        const cleanJson = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-        const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          parsedContent = JSON.parse(jsonMatch[0]);
-          activeModelUsed = model;
-          break; // Successfully scanned
-        }
-      }
-    } catch (err) {
-      modelErrors.push(`${model}: ${err.message}`);
-      continue;
-    }
-  }
-
-  if (!parsedContent) {
-    return res.status(500).json({
-      error: `All vision models unavailable. ${modelErrors[0] || 'Please retry in a moment.'}`
-    });
-  }
-
-  // 1. Business Logic Checks
-  if (!parsedContent.is_valid_receipt || !parsedContent.status_success) {
-    return res.status(400).json({ error: parsedContent.rejection_reason || 'Screenshot is not a valid successful payment receipt.' });
-  }
-
-  if (!parsedContent.payee_matches) {
-    return res.status(400).json({ error: `Payee mismatch: Paid to "${parsedContent.payee_name}" instead of Ashok Ray.` });
-  }
-
-  if (!parsedContent.amount_valid || parsedContent.amount_paid < expectedPrice) {
-    return res.status(400).json({ error: `Amount mismatch: Receipt shows ₹${parsedContent.amount_paid}, but ₹${expectedPrice} is required.` });
-  }
-
-  const detectedUtr = parsedContent.utr_number ? String(parsedContent.utr_number).replace(/\D/g, '') : null;
-  if (!detectedUtr || detectedUtr.length < 8) {
-    return res.status(400).json({ error: 'Could not extract a clear 12-digit UTR from the receipt.' });
-  }
-
-  // 2. Supabase Duplicate UTR Check
-  const supabase = createClient(supabaseUrl, supabaseServiceKey || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNldHpianpwZ29tdXZncmNnZ2pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NTE1NzcsImV4cCI6MjEwNjUyNzU3N30.R2tV8fWGVKIG6G44PcQvjwTkwLWnhGcOjkH_mwT4Z_0");
-
-  const { data: existing } = await supabase
-    .from('payments')
-    .select('id')
-    .eq('payment_id', detectedUtr)
-    .limit(1);
-
-  if (existing && existing.length > 0) {
-    return res.status(400).json({ error: `This UTR (${detectedUtr}) has already been redeemed previously!` });
-  }
-
-  // 3. Grant Credits
-  const creditsToAdd = planName.toLowerCase().includes('pro') ? 10 : 1;
-
-  if (userId) {
-    await supabase.from('payments').insert({
-      user_id: userId,
-      amount: parsedContent.amount_paid,
-      currency: 'INR',
-      plan_type: planName.toLowerCase().includes('pro') ? 'pro_monthly' : 'single_pass',
-      payment_id: detectedUtr,
-      payment_status: 'ai_verified_success'
-    });
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('credits')
-      .eq('id', userId)
-      .single();
-
-    const newCredits = ((profile?.credits) || 0) + creditsToAdd;
-
-    await supabase
-      .from('profiles')
-      .upsert({ id: userId, credits: newCredits }, { onConflict: "id" });
-
-    return res.status(200).json({
-      success: true,
-      credits: newCredits,
-      utr: detectedUtr,
-      amount: parsedContent.amount_paid,
-      modelUsed: activeModelUsed
-    });
-  }
-
-  return res.status(200).json({ success: true, credits: creditsToAdd, utr: detectedUtr, modelUsed: activeModelUsed });
+async function getUser(req) {
+  const h = req.headers.authorization || "";
+  const token = h.indexOf("Bearer ") === 0 ? h.slice(7) : "";
+  if (!token) return null;
+  const r = await fetch(SB_URL + "/auth/v1/user", { headers: { apikey: SB_SERVICE, Authorization: "Bearer " + token } });
+  if (!r.ok) return null;
+  const u = await r.json();
+  return u && u.id ? u : null;
 }
+
+async function rpc(name, args) {
+  const r = await fetch(SB_URL + "/rest/v1/rpc/" + name, {
+    method: "POST",
+    headers: { apikey: SB_SERVICE, Authorization: "Bearer " + SB_SERVICE, "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error("Database error: " + text.slice(0, 200));
+  return JSON.parse(text);
+}
+
+async function callGemini(model, key, mime, b64) {
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
+  const ctrl = new AbortController();
+  const timer = setTimeout(function () { ctrl.abort(); }, 40000);
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: PROMPT }, { inline_data: { mime_type: mime, data: b64 } }] }],
+        generationConfig: { temperature: 0, responseMimeType: "application/json" },
+      }),
+      signal: ctrl.signal,
+    });
+    const raw = await r.text();
+    if (!r.ok) {
+      const err = new Error("Gemini HTTP " + r.status + " (" + model + "): " + raw.slice(0, 200));
+      err.status = r.status;
+      throw err;
+    }
+    const data = JSON.parse(raw);
+    const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+    return parts.map(function (p) { return p.text || ""; }).join("");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function extractJson(text) {
+  if (!text) return null;
+  const s = text.indexOf("{");
+  const e = text.lastIndexOf("}");
+  if (s === -1 || e <= s) return null;
+  try { return JSON.parse(text.slice(s, e + 1)); } catch (err) { return null; }
+}
+
+// Returns an error string, or "" when the screenshot passes every check.
+function judge(info, pack) {
+  if (!info || info.is_payment_screenshot !== true) return "This does not look like a UPI payment screenshot.";
+  if (info.suspicious === true) return "This screenshot looks edited or incomplete. Upload the original, full screenshot.";
+  const st = String(info.status || "").toLowerCase();
+  if (!(st.indexOf("success") !== -1 || st === "paid" || st === "completed")) {
+    return "Payment status is not Successful / Paid / Completed.";
+  }
+  const amt = Number(String(info.amount === null || info.amount === undefined ? "" : info.amount).replace(/[^0-9.]/g, ""));
+  if (!isFinite(amt) || Math.abs(amt - pack.amount) > 0.001) {
+    return "Amount mismatch. Expected Rs " + pack.amount + ", screenshot shows " + (info.amount === null || info.amount === undefined ? "no amount" : "Rs " + info.amount) + ".";
+  }
+  const rid = String(info.receiver_upi_id || "").toLowerCase();
+  const rname = String(info.receiver_name || "").toLowerCase();
+  const hint = String(process.env.RECEIVER_NAME_HINT || "").toLowerCase();
+  const okReceiver =
+    rid.indexOf(RECEIVER_DIGITS) !== -1 ||
+    rname.indexOf("safeclause") !== -1 ||
+    (hint && rname.indexOf(hint) !== -1);
+  if (!okReceiver) return "Receiver does not match " + RECEIVER_ID + ". Please pay to the correct UPI ID.";
+  const txn = String(info.transaction_id || "").replace(/\s+/g, "");
+  if (txn.length < 8) return "Transaction ID is not visible. Upload the full payment-success screen.";
+  const t = Date.parse(info.paid_at || "");
+  if (isFinite(t)) {
+    const now = Date.now();
+    if (now - t > 3 * 24 * 3600 * 1000) return "This payment is older than 3 days.";
+    if (t - now > 24 * 3600 * 1000) return "Payment date looks invalid.";
+  }
+  return "";
+}
+
+async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ success: false, error: "Use POST." });
+  if (!SB_URL || !SB_SERVICE) return res.status(500).json({ success: false, error: "Server is missing Supabase settings." });
+  const gkey = process.env.GEMINI_API_KEY;
+  if (!gkey) return res.status(500).json({ success: false, error: "Server is missing GEMINI_API_KEY." });
+
+  let body = req.body;
+  if (typeof body === "string") { try { body = JSON.parse(body); } catch (e) { body = {}; } }
+  body = body || {};
+
+  try {
+    const user = await getUser(req);
+    if (!user) return res.status(401).json({ success: false, error: "Please log in first." });
+
+    const pack = PACKS[Number(body.pack)];
+    if (!pack) return res.status(400).json({ success: false, error: "Unknown credit pack." });
+    const b64 = String(body.image || "");
+    const mime = ["image/jpeg", "image/png", "image/webp"].indexOf(body.mime) !== -1 ? body.mime : "image/jpeg";
+    if (b64.length < 1000) return res.status(400).json({ success: false, error: "Screenshot is missing or too small." });
+    if (b64.length > MAX_B64) return res.status(413).json({ success: false, error: "Screenshot is too large." });
+
+    let info = null;
+    let lastError = "Verification service is unavailable. Try again shortly.";
+    for (let i = 0; i < MODELS.length && !info; i++) {
+      try {
+        info = extractJson(await callGemini(MODELS[i], gkey, mime, b64));
+        if (!info) lastError = "Could not read the screenshot. Upload a clearer image.";
+      } catch (e) {
+        lastError = (e && e.message) || lastError;
+        if (e && (e.status === 401 || e.status === 403 || e.status === 429)) break;
+      }
+    }
+    if (!info) return res.status(502).json({ success: false, error: lastError });
+
+    const problem = judge(info, pack);
+    if (problem) return res.status(400).json({ success: false, error: problem });
+
+    const txn = String(info.transaction_id).replace(/\s+/g, "").toUpperCase();
+    const hash = crypto.createHash("sha256").update(b64).digest("hex");
+    const total = await rpc("redeem_payment", {
+      p_user: user.id, p_txn: txn, p_hash: hash, p_amount: pack.amount, p_credits: pack.credits,
+    });
+    if (typeof total !== "number" || total < 0) {
+      return res.status(409).json({ success: false, error: "This payment / transaction ID was already used." });
+    }
+    return res.status(200).json({ success: true, creditsAdded: pack.credits, credits: total });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: (e && e.message) || "Verification failed." });
+  }
+}
+
+export default handler;
