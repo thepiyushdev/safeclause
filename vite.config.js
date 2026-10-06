@@ -17,6 +17,11 @@ if (fs.existsSync('.env')) {
 }
 
 export default defineConfig({
+  // __SB_BAKED__
+  define: {
+    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify("https://cetzbjzpgomuvgrcggjs.supabase.co"),
+    'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNldHpianpwZ29tdXZncmNnZ2pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NTE1NzcsImV4cCI6MjEwNjUyNzU3N30.R2tV8fWGVKIG6G44PcQvjwTkwLWnhGcOjkH_mwT4Z_0")
+  },
   envPrefix: ['VITE_', 'SUPABASE_'],
   plugins: [
     svelte(),

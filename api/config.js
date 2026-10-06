@@ -5,30 +5,8 @@ export default function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
-  const rawKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
-
-  function clean(s) {
-    return String(s || '')
-      .trim()
-      .replace(/^[\"']|[\"']$/g, '')
-      .replace(/[\r\n\t\s]+/g, '')
-      .trim();
-  }
-
-  let url = clean(rawUrl);
-  if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
-    url = 'https://' + url;
-  }
-  url = url.replace(/\/+$/, '');
-
-  let key = clean(rawKey);
-  if (key.toLowerCase().startsWith('bearer ')) {
-    key = key.slice(7).trim();
-  }
-
   return res.status(200).json({
-    supabaseUrl: url,
-    supabaseAnonKey: key
+    supabaseUrl: "https://cetzbjzpgomuvgrcggjs.supabase.co",
+    supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNldHpianpwZ29tdXZncmNnZ2pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NTE1NzcsImV4cCI6MjEwNjUyNzU3N30.R2tV8fWGVKIG6G44PcQvjwTkwLWnhGcOjkH_mwT4Z_0"
   });
 }
