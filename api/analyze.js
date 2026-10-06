@@ -8,8 +8,7 @@ export default async function handler(req, res) {
 
   const body = req.body || {};
   const rawText = body.contractText || body.text || '';
-  // Send 2500 characters so prompt evaluation takes under 1 second
-  const cleanText = String(rawText).slice(0, 2500).trim();
+  const cleanText = String(rawText).slice(0, 10000).trim();
   const activeTitle = body.contractTitle || body.title || "Contract Audit";
   const jur = String(body.jurisdiction || 'INDIA').replace(/ LAW/i, '').trim();
 
@@ -17,77 +16,93 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: "Contract text is empty or too short." });
   }
 
-  const openrouterKey = process.env.OPENROUTER_API_KEY || "sk-or-v1-29cadf019f23a38daec1b6251cb" + "32ed022e08e2588ecd59113eaf05b53c2c36e";
+  const groqKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
 
-  if (!openrouterKey) {
-    return res.status(400).json({ success: false, error: "OpenRouter API Key missing on server." });
+  if (!groqKey) {
+    return res.status(400).json({ 
+      success: false, 
+      error: "Not goes to AI: GROQ_API_KEY missing in Vercel Environment Variables. Please add GROQ_API_KEY in Vercel Settings." 
+    });
   }
 
-  function formatClause(c) {
-    const cat = String(c.category || 'RISK_CLAUSE').replace(/\s+/g, '_').toUpperCase();
-    const fine = c.problematic_fine_print || c.fine_print || c.quote || c.clause || 'Predatory clause detected.';
-    const hurts = c.why_it_hurts || c.whyItHurts || c.explanation || 'Exposes freelancer to severe commercial risks.';
-    const counter = c.safe_counter_clause || c.counter_clause || 'Invoices shall be payable within 14 calendar days of receipt.';
-    const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || `Subject: Contract Review - Adjustment\\n\\nHi [Client Name],\\n\\nRegarding this section, I suggest updating to standard commercial terms.\\n\\nBest regards,\\n[Your Name]`;
+  function populateItem(c) {
+    const fine = c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.clause || c.text || 'Predatory fine print identified in section.';
+    const hurts = c.why_it_hurts || c.whyItHurts || c.why_it_hurts_you || c.explanation || c.reason || 'Creates severe legal liability and financial exposure for the freelancer.';
+    const counter = c.safe_counter_clause || c.counter_clause || c.safeCounterClause || c.counterClause || 'Invoices shall be payable within 14 calendar days of receipt (Net-14).';
+    const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || c.politeClientNegotiationEmail || 'Subject: Contract Adjustment\\n\\nHi [Client Name],\\n\\nRegarding this section, I would like to propose a balanced alternative.\\n\\nBest regards,\\n[Your Name]';
 
     return {
-      category: cat,
-      risk_level: String(c.risk_level || c.riskLevel || 'HIGH').replace(/\s*RISK/i, ''),
+      category: String(c.category || 'RISK_CLAUSE').replace(/\s+/g, '_').toUpperCase(),
+      risk_level: String(c.risk_level || c.riskLevel || c.severity || 'HIGH').replace(/\s*RISK/i, ''),
       problematic_fine_print: fine,
       fine_print: fine,
+      problematicFinePrint: fine,
+      finePrint: fine,
+      quote: fine,
+      clause: fine,
       why_it_hurts: hurts,
       whyItHurts: hurts,
+      why_it_hurts_you: hurts,
+      explanation: hurts,
       safe_counter_clause: counter,
+      safeCounterClause: counter,
       counter_clause: counter,
+      counterClause: counter,
       polite_client_negotiation_email: email,
-      negotiation_email: email
+      politeClientNegotiationEmail: email,
+      negotiation_email: email,
+      email: email
     };
   }
 
-  // Ultra-concise prompt: Generates under 300 tokens (finishes in 3 seconds!)
-  const prompt = `Analyze this contract under ${jur} law. Identify 3-4 predatory clauses.
-Be concise (1 sentence per field). Return strictly valid raw JSON:
+  const prompt = `You are SafeClause, a senior contract risk auditor. Analyze this contract under ${jur} legal framework.
+Identify 4 high-risk or predatory clauses from this specific document text.
+
+You MUST respond in strictly valid JSON format matching this schema:
 {
-  "summary": "2-sentence executive summary",
+  "summary": "2-3 sentence executive risk assessment for this contract",
   "overall_risk_score": "HIGH",
   "flagged_clauses": [
     {
       "category": "PAYMENT_TERMS",
       "risk_level": "HIGH",
-      "problematic_fine_print": "Exact short quote",
-      "why_it_hurts": "1-sentence risk explanation",
-      "safe_counter_clause": "Short protective replacement clause",
-      "polite_client_negotiation_email": "Subject: Contract Adjustment\\n\\nHi [Client Name],\\n\\nRegarding this clause, I propose standard commercial terms.\\n\\nBest,\\n[Your Name]"
+      "problematic_fine_print": "Exact quote directly from the provided contract text",
+      "why_it_hurts": "Plain English explanation of financial or legal trap",
+      "safe_counter_clause": "Balanced replacement clause protecting the freelancer",
+      "polite_client_negotiation_email": "Subject: Contract Review - Suggested Adjustment\\n\\nHi [Client Name],\\n\\nRegarding Section X, I would like to propose standard commercial terms...\\n\\nBest regards,\\n[Your Name]"
     }
   ]
 }
-Contract:
+
+Contract Title: ${activeTitle}
+Contract Text:
 ${cleanText}`;
 
   const models = [
-    'nvidia/nemotron-3.5-lightning:free',
-    'liquid/lfm-2.5-2.6b:free'
+    'llama-3.3-70b-versatile',
+    'llama-3.1-8b-instant'
   ];
 
-  for (const model of models) {
+  const failureLog = [];
+
+  for (const m of models) {
     try {
       const ctrl = new AbortController();
-      // Strict 7s timeout so Vercel 10s ceiling is NEVER hit
-      const tid = setTimeout(() => ctrl.abort(), 7000);
+      // Groq responds in 1-2s; 8s ceiling ensures function never hangs
+      const tid = setTimeout(() => ctrl.abort(), 8000);
 
-      const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${openrouterKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://safeclause-nine.vercel.app",
-          "X-Title": "SafeClause"
+          "Authorization": `Bearer ${groqKey}`,
+          "Content-Type": "application/json"
         },
         signal: ctrl.signal,
         body: JSON.stringify({
-          model: model,
+          model: m,
           messages: [{ role: "user", content: prompt }],
-          max_tokens: 500
+          response_format: { type: "json_object" },
+          temperature: 0.2
         })
       });
       clearTimeout(tid);
@@ -101,27 +116,30 @@ ${cleanText}`;
           const parsed = JSON.parse(match[0]);
           const list = parsed.flagged_clauses || parsed.clauses || [];
           if (list.length > 0) {
-            const clauses = list.map(formatClause);
+            const clauses = list.map(populateItem);
             const out = {
               overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\s*RISK/i, ''),
               risk_level: 'HIGH',
               jurisdiction: jur,
               contract_title: activeTitle,
-              summary: parsed.summary || 'AI contract audit complete.',
+              summary: parsed.summary || 'Live Groq AI contract audit complete.',
               flagged_clauses: clauses,
               clauses: clauses
             };
             return res.status(200).json({ success: true, data: out, ...out });
           }
         }
+      } else {
+        const errText = await resp.text();
+        failureLog.push(`${m}: HTTP ${resp.status} - ${errText.slice(0, 100)}`);
       }
     } catch (err) {
-      // Try next fast model immediately
+      failureLog.push(`${m}: ${err.message}`);
     }
   }
 
   return res.status(502).json({
     success: false,
-    error: "Not goes to AI: Model queue busy. Tap Audit again to retry."
+    error: "Not goes to AI: " + failureLog.join(" | ")
   });
 }

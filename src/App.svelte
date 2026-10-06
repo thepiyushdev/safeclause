@@ -277,132 +277,48 @@
     errorMessage = '';
     auditResult = null;
     hasUnlocked = false;
-    auditTimerSeconds = 0;
 
-    if (timerInterval) clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-      auditTimerSeconds += 1;
-    }, 1000);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
 
     try {
-      // Step 1: Get Key from backend (Takes 50ms, never times out on Vercel)
-      let aiKey = "";
-      try {
-        const cfgRes = await fetch("/api/config");
-        if (cfgRes.ok) {
-          const cfgData = await cfgRes.json();
-          aiKey = cfgData.key || "";
-        }
-      } catch (e) {}
-
-      if (!aiKey) {
-        throw new Error("OpenRouter API Key could not be retrieved from server.");
-      }
-
-      // Step 2: Browser calls OpenRouter directly (No Vercel 10s kill limit!)
-      const cleanText = String(contractText).slice(0, 4500).trim();
-      const jur = String(jurisdiction || 'INDIA').replace(/ LAW/i, '').trim();
-
-      const prompt = `Analyze this contract under ${jur} law. Identify 3-4 predatory clauses.
-Return strictly valid raw JSON:
-{
-  "summary": "2-sentence executive summary",
-  "overall_risk_score": "HIGH",
-  "flagged_clauses": [
-    {
-      "category": "PAYMENT_TERMS",
-      "risk_level": "HIGH",
-      "problematic_fine_print": "Exact short quote from contract",
-      "why_it_hurts": "1-2 sentence risk explanation",
-      "safe_counter_clause": "Short protective replacement clause",
-      "polite_client_negotiation_email": "Subject: Contract Adjustment\\n\\nHi [Client Name],\\n\\nRegarding this clause, I suggest aligning on standard terms.\\n\\nBest regards,\\n[Your Name]"
-    }
-  ]
-}
-Contract:
-${cleanText}`;
-
-      const aiResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const res = await fetch("/api/audit", {
         method: "POST",
-        headers: {
-          "Authorization": "Bearer " + aiKey,
-          "Content-Type": "application/json",
-          "HTTP-Referer": window.location.origin,
-          "X-Title": "SafeClause"
-        },
-        body: JSON.stringify({
-          model: "nvidia/nemotron-3.5-lightning:free",
-          models: [
-            "nvidia/nemotron-3.5-lightning:free",
-            "liquid/lfm-2.5-2.6b:free",
-            "inclusionai/ling-3.0-flash-sante:free"
-          ],
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: 600
-        })
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({ contractTitle, contractText, jurisdiction })
       });
+      clearTimeout(timer);
 
-      if (!aiResponse.ok) {
-        const errTxt = await aiResponse.text();
-        throw new Error("AI Service responded with status " + aiResponse.status + ": " + errTxt.slice(0, 80));
+      const rawResponse = await res.text();
+      let json = {};
+      try {
+        json = JSON.parse(rawResponse);
+      } catch (parseErr) {
+        throw new Error("Server error: " + rawResponse.slice(0, 80));
       }
 
-      const d = await aiResponse.json();
-      let raw = d.choices?.[0]?.message?.content || "";
-      raw = raw.replace(/\`\`\`json/gi, '').replace(/\`\`\`/g, '').trim();
-      const match = raw.match(/\{[\s\S]*\}/);
-      if (!match) {
-        throw new Error("AI did not return valid JSON format.");
+      if (res.ok && json.success && (json.flagged_clauses || json.clauses || (json.data && json.data.flagged_clauses))) {
+        auditResult = json.data || json;
+        errorMessage = '';
+        setTimeout(() => {
+          const el = document.getElementById('audit-results');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      } else {
+        auditResult = null;
+        errorMessage = json.error || 'Not goes to AI: Groq analysis failed.';
       }
-
-      const parsed = JSON.parse(match[0]);
-      const list = parsed.flagged_clauses || parsed.clauses || [];
-      if (!list.length) {
-        throw new Error("No clauses were flagged by the AI.");
-      }
-
-      const cleanList = list.map(c => {
-        const fine = c.problematic_fine_print || c.fine_print || c.quote || c.clause || 'Predatory clause detected.';
-        const hurts = c.why_it_hurts || c.whyItHurts || c.explanation || 'Exposes freelancer to severe risks.';
-        const counter = c.safe_counter_clause || c.counter_clause || 'Invoices shall be payable within 14 calendar days of receipt.';
-        const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || 'Subject: Adjustment\\n\\nHi [Client Name],\\n\\nLet us align on standard terms.\\n\\nBest,\\n[Your Name]';
-
-        return {
-          category: String(c.category || 'RISK_CLAUSE').replace(/\s+/g, '_').toUpperCase(),
-          risk_level: String(c.risk_level || c.riskLevel || 'HIGH').replace(/\s*RISK/i, ''),
-          problematic_fine_print: fine,
-          fine_print: fine,
-          why_it_hurts: hurts,
-          whyItHurts: hurts,
-          safe_counter_clause: counter,
-          counter_clause: counter,
-          polite_client_negotiation_email: email,
-          negotiation_email: email
-        };
-      });
-
-      auditResult = {
-        overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\s*RISK/i, ''),
-        risk_level: 'HIGH',
-        jurisdiction: jur,
-        contract_title: contractTitle || 'Contract Audit',
-        summary: parsed.summary || 'Live AI contract audit complete.',
-        flagged_clauses: cleanList,
-        clauses: cleanList
-      };
-
-      errorMessage = '';
-      setTimeout(() => {
-        const el = document.getElementById('audit-results');
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-
     } catch (err) {
+      clearTimeout(timer);
       auditResult = null;
-      errorMessage = 'Not goes to AI: ' + err.message;
+      if (err.name === 'AbortError') {
+        errorMessage = 'Not goes to AI: Request timed out. Please tap Audit again.';
+      } else {
+        errorMessage = err.message.startsWith('Not goes to AI') ? err.message : 'Not goes to AI: ' + err.message;
+      }
     } finally {
       loading = false;
-      if (timerInterval) clearInterval(timerInterval);
     }
   }
 
