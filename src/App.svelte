@@ -278,6 +278,7 @@
 
   async function handleAudit() {
     hasUnlocked = false;
+    hasUnlocked = false;
     if (!contractText.trim()) {
       errorMessage = 'Please enter contract text or select a sample.';
       return;
@@ -639,7 +640,7 @@
             {#each (auditResult.flagged_clauses || auditResult.clauses || []) as clause, idx}
       <div class="clause-card" style="position: relative; background: #0f172a; border-left: 4px solid #ef4444; border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-top: 1px solid rgba(255,255,255,0.05); border-right: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05);">
         
-        <!-- Header: Category & Risk Level -->
+        <!-- Header -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
           <span style="font-size: 0.8rem; font-weight: 800; color: #94a3b8; letter-spacing: 0.05em; text-transform: uppercase;">
             {clause.category || 'RISK_CLAUSE'}
@@ -649,7 +650,7 @@
           </span>
         </div>
 
-        <!-- Problematic Fine Print (Free Preview) -->
+        <!-- Problematic Fine Print (Free Hook) -->
         <div style="margin-bottom: 16px;">
           <div style="color: #f87171; font-size: 0.85rem; font-weight: 700; margin-bottom: 6px;">
             Problematic Fine Print:
@@ -659,7 +660,7 @@
           </div>
         </div>
 
-        <!-- Why It Hurts You (Free Preview) -->
+        <!-- Why It Hurts You (Free Hook) -->
         <div style="margin-bottom: 20px;">
           <div style="color: #fbbf24; font-size: 0.85rem; font-weight: 700; margin-bottom: 6px;">
             Why It Hurts You:
@@ -669,10 +670,10 @@
           </p>
         </div>
 
-        <!-- Locked Section: Safe Counter-Clause + Negotiation Email -->
+        <!-- LOCKED SECTION: COUNTER-CLAUSE + NEGOTIATION EMAIL -->
         <div style="position: relative; margin-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 16px;">
           
-          <div style="{hasUnlocked ? '' : 'filter: blur(8px); -webkit-filter: blur(8px); user-select: none; pointer-events: none; opacity: 0.35;'} transition: all 0.3s ease;">
+          <div style="{hasUnlocked ? '' : 'filter: blur(8px); -webkit-filter: blur(8px); user-select: none; pointer-events: none; opacity: 0.3;'} transition: all 0.3s ease;">
             
             <!-- Safe Counter-Clause -->
             <div style="margin-bottom: 18px;">
@@ -691,18 +692,18 @@
             <div>
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <span style="color: #38bdf8; font-size: 0.85rem; font-weight: 700;">Polite Client Negotiation Email:</span>
-                <button on:click={() => navigator.clipboard.writeText(clause.polite_client_negotiation_email || clause.negotiation_email)} style="background: #38bdf8; color: #082f49; font-size: 0.75rem; font-weight: 700; border: none; padding: 4px 10px; border-radius: 6px; cursor: pointer;">
+                <button on:click={() => navigator.clipboard.writeText((clause.polite_client_negotiation_email || clause.negotiation_email || '').replaceAll('\\n', '\n'))} style="background: #38bdf8; color: #082f49; font-size: 0.75rem; font-weight: 700; border: none; padding: 4px 10px; border-radius: 6px; cursor: pointer;">
                   Copy Email
                 </button>
               </div>
               <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); padding: 14px; border-radius: 8px; color: #cbd5e1; font-size: 0.88rem; line-height: 1.6; white-space: pre-wrap; font-family: inherit;">
-                {clause.polite_client_negotiation_email || clause.negotiation_email || ''}
+                {(clause.polite_client_negotiation_email || clause.negotiation_email || '').replaceAll('\\n', '\n')}
               </div>
             </div>
 
           </div>
 
-          <!-- Lock Overlay -->
+          <!-- LOCK OVERLAY -->
           {#if !hasUnlocked}
             <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.88); border-radius: 10px; padding: 18px; text-align: center; backdrop-filter: blur(4px);">
               <div style="font-size: 2rem; margin-bottom: 8px;">🔒</div>
