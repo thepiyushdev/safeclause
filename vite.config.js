@@ -17,6 +17,7 @@ if (fs.existsSync('.env')) {
 }
 
 export default defineConfig({
+  envPrefix: ['VITE_', 'SUPABASE_'],
   plugins: [
     svelte(),
     {

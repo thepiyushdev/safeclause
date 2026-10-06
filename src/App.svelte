@@ -2,9 +2,39 @@
   import { onMount, onDestroy } from "svelte";
   import { createClient } from "@supabase/supabase-js";
 
-  const SB_URL = import.meta.env.VITE_SUPABASE_URL;
-  const SB_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  const sb = SB_URL && SB_KEY ? createClient(SB_URL, SB_KEY) : null;
+  function cleanEnvStr(s) {
+    return String(s || "")
+      .trim()
+      .replace(/^["']|["']$/g, "")
+      .replace(/[\r\n\t\s]+/g, "")
+      .trim();
+  }
+
+  function cleanUrl(raw) {
+    let u = cleanEnvStr(raw);
+    if (u && !u.startsWith("http://") && !u.startsWith("https://")) {
+      u = "https://" + u;
+    }
+    return u.replace(/\/+$/, "");
+  }
+
+  function cleanKey(raw) {
+    let k = cleanEnvStr(raw);
+    if (k.toLowerCase().startsWith("bearer ")) {
+      k = k.slice(7).trim();
+    }
+    return k;
+  }
+
+  let sb = null;
+  const buildUrl = cleanUrl(import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
+  const buildKey = cleanKey(import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY);
+
+  if (buildUrl && buildKey) {
+    try {
+      sb = createClient(buildUrl, buildKey);
+    } catch (e) {}
+  }
 
   const UPI_ID = "8796021247@fam";
   const MAX_CHARS = 10000;
@@ -83,14 +113,29 @@
   $: highCount = flagged.filter(function (c) { return c.risk_level === "HIGH"; }).length;
 
   onMount(async function () {
+    if (!sb) {
+      try {
+        const cfgRes = await fetch("/api/config");
+        if (cfgRes.ok) {
+          const cfg = await cfgRes.json();
+          if (cfg.supabaseUrl && cfg.supabaseAnonKey) {
+            sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+          }
+        }
+      } catch (err) {}
+    }
+
     if (!sb) return;
-    const res0 = await sb.auth.getSession();
-    session = res0.data ? res0.data.session : null;
-    const res = sb.auth.onAuthStateChange(function (event, s) {
-      session = s;
-      if (event === "PASSWORD_RECOVERY") showRecovery = true;
-    });
-    sub = res.data.subscription;
+
+    try {
+      const res0 = await sb.auth.getSession();
+      session = res0.data ? res0.data.session : null;
+      const res = sb.auth.onAuthStateChange(function (event, s) {
+        session = s;
+        if (event === "PASSWORD_RECOVERY") showRecovery = true;
+      });
+      sub = res.data.subscription;
+    } catch (err) {}
   });
   onDestroy(function () { if (sub) sub.unsubscribe(); });
 
@@ -587,11 +632,13 @@
   .glass { background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.09); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
   .nav { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; border-width: 0 0 1px 0; }
   .logo { background: none; border: 0; color: inherit; font: inherit; font-weight: 800; font-size: 1.1rem; cursor: pointer; }
-  .nav-right { display: flex; gap: 6px; align-items: center; }
+  .nav-right { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+  .nav-right .btn { white-space: nowrap; padding: 6px 10px; font-size: 0.8rem; font-weight: 600; }
+  .nav-right .chip { white-space: nowrap; padding: 5px 9px; font-size: 0.8rem; }
   .chip { background: rgba(109, 94, 252, 0.18); border: 1px solid rgba(109, 94, 252, 0.5); color: #cfc9ff; padding: 5px 11px; border-radius: 999px; font: inherit; font-weight: 700; cursor: pointer; box-shadow: 0 0 14px rgba(109, 94, 252, 0.35); }
-  .tabs { display: flex; gap: 6px; margin-top: 12px; overflow-x: auto; }
-  .tabs button { flex: 1; white-space: nowrap; padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); background: transparent; color: #9aa4b5; font: inherit; cursor: pointer; }
-  .tabs button.active { color: #fff; background: rgba(109, 94, 252, 0.22); border-color: rgba(109, 94, 252, 0.55); }
+  .tabs { display: flex; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; padding: 4px; gap: 4px; margin-top: 14px; width: 100%; box-sizing: border-box; }
+  .tabs button { flex: 1; padding: 9px 8px; border-radius: 8px; border: none; background: transparent; color: #94a3b8; font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; white-space: nowrap; text-align: center; transition: all 0.2s ease; }
+  .tabs button.active { background: linear-gradient(135deg, #6d5efc, #3b82f6); color: #ffffff; box-shadow: 0 2px 10px rgba(109, 94, 252, 0.4); }
   .hero { text-align: center; padding: 22px 0 10px; }
   .hero h1 { margin: 0 0 8px; font-size: 1.7rem; line-height: 1.2; }
   .hero p { margin: 0; color: #9aa4b5; }
