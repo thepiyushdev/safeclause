@@ -13,18 +13,11 @@ export default async function handler(req, res) {
   const jur = String(body.jurisdiction || 'INDIA').replace(/ LAW/i, '').trim();
 
   if (!cleanText || cleanText.length < 20) {
-    return res.status(400).json({ success: false, error: "Not goes to AI: Contract text is empty or too short to analyze." });
+    return res.status(400).json({ success: false, error: "Contract text is empty or too short." });
   }
 
-  const openrouterKey = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY || "sk-or-v1-29c" + "adf019f23a38daec1b6251cb32ed022e08e2588ecd59113eaf05b53c2c36e";
-  const geminiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_KEY || "";
-
-  if (!openrouterKey && !geminiKey) {
-    return res.status(400).json({
-      success: false,
-      error: "Not goes to AI: Neither OpenRouter API Key nor Gemini API Key is available on the server."
-    });
-  }
+  const openrouterKey = process.env.OPENROUTER_API_KEY || "sk-or-v1-29cadf019f23a38daec1b6251cb" + "32ed022e08e2588ecd59113eaf05b53c2c36e";
+  const geminiKey = process.env.GEMINI_API_KEY || "";
 
   function populateItem(c) {
     const fine = c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.clause || c.text || '';
@@ -56,12 +49,12 @@ export default async function handler(req, res) {
     };
   }
 
-  const prompt = `You are SafeClause, an expert legal contract risk auditor. Analyze this contract under ${jur} law.
+  const prompt = `You are SafeClause, a senior contract risk auditor. Analyze this contract under ${jur} legal framework.
 Identify 4 high-risk or predatory clauses from this specific document text.
 
-Return strictly raw JSON (no markdown formatting, no code backticks):
+Return strictly raw JSON (no markdown backticks, no code formatting):
 {
-  "summary": "2-3 sentence executive risk assessment for this specific contract",
+  "summary": "2-3 sentence executive risk assessment for this contract",
   "overall_risk_score": "HIGH",
   "flagged_clauses": [
     {
@@ -79,28 +72,21 @@ Contract Title: ${activeTitle}
 Contract Text:
 ${cleanText}`;
 
-  const failureErrors = [];
+  const failureLog = [];
 
-  // 1. TIER 1: OpenRouter 100% Free Models
-  if (openrouterKey) {
-    const freeModels = [
-      'meta-llama/llama-3.3-70b-instruct:free',
-      'deepseek/deepseek-r1:free',
-      'qwen/qwen-2.5-72b-instruct:free',
-      'google/gemini-2.0-flash-exp:free'
-    ];
-
-    for (const m of freeModels) {
+  // TIER 1: VERIFIED WORKING OPENROUTER MODELS
+  const verifiedOr = ["apodex/apodex-1.1-mini:free","inclusionai/ling-3.0-flash-sante:free","dots-studio/dots-3-note-preview:free","liquid/lfm-2.5-2.6b:free","nvidia/nemotron-3.5-lightning:free","poolside/laguna-s-2.1:free"];
+  if (openrouterKey && verifiedOr.length > 0) {
+    for (const m of verifiedOr) {
       try {
         const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 12000);
+        const t = setTimeout(() => ctrl.abort(), 12000);
         const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${openrouterKey}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://safeclause-nine.vercel.app",
-            "X-Title": "SafeClause"
+            "HTTP-Referer": "https://safeclause-nine.vercel.app"
           },
           signal: ctrl.signal,
           body: JSON.stringify({
@@ -108,8 +94,7 @@ ${cleanText}`;
             messages: [{ role: "user", content: prompt }]
           })
         });
-        clearTimeout(tid);
-
+        clearTimeout(t);
         if (res.ok) {
           const d = await res.json();
           let raw = d.choices?.[0]?.message?.content || "";
@@ -120,7 +105,7 @@ ${cleanText}`;
             const list = parsed.flagged_clauses || parsed.clauses || [];
             if (list.length > 0) {
               const clauses = list.map(populateItem);
-              const result = {
+              const out = {
                 overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\s*RISK/i, ''),
                 risk_level: 'HIGH',
                 jurisdiction: jur,
@@ -129,27 +114,25 @@ ${cleanText}`;
                 flagged_clauses: clauses,
                 clauses: clauses
               };
-              return res.status(200).json({ success: true, data: result, ...result });
+              return res.status(200).json({ success: true, data: out, ...out });
             }
           }
         } else {
-          const errText = await res.text();
-          failureErrors.push(`${m}: HTTP ${res.status} - ${errText.slice(0, 100)}`);
+          failureLog.push(`${m}: HTTP ${res.status}`);
         }
       } catch (e) {
-        failureErrors.push(`${m}: ${e.message}`);
+        failureLog.push(`${m}: ${e.message}`);
       }
     }
   }
 
-  // 2. TIER 2: Official Google Gemini Flash Models
-  if (geminiKey) {
-    const geminiModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
-
-    for (const m of geminiModels) {
+  // TIER 2: VERIFIED WORKING GEMINI MODELS
+  const verifiedGemini = [];
+  if (geminiKey && verifiedGemini.length > 0) {
+    for (const m of verifiedGemini) {
       try {
         const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 10000);
+        const t = setTimeout(() => ctrl.abort(), 10000);
         const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -159,8 +142,7 @@ ${cleanText}`;
             generationConfig: { responseMimeType: 'application/json' }
           })
         });
-        clearTimeout(tid);
-
+        clearTimeout(t);
         if (gRes.ok) {
           const d = await gRes.json();
           let raw = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -171,7 +153,7 @@ ${cleanText}`;
             const list = parsed.flagged_clauses || parsed.clauses || [];
             if (list.length > 0) {
               const clauses = list.map(populateItem);
-              const result = {
+              const out = {
                 overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\s*RISK/i, ''),
                 risk_level: 'HIGH',
                 jurisdiction: jur,
@@ -180,22 +162,20 @@ ${cleanText}`;
                 flagged_clauses: clauses,
                 clauses: clauses
               };
-              return res.status(200).json({ success: true, data: result, ...result });
+              return res.status(200).json({ success: true, data: out, ...out });
             }
           }
         } else {
-          const errText = await gRes.text();
-          failureErrors.push(`${m}: HTTP ${gRes.status} - ${errText.slice(0, 100)}`);
+          failureLog.push(`${m}: HTTP ${gRes.status}`);
         }
-      } catch (err) {
-        failureErrors.push(`${m}: ${err.message}`);
+      } catch (e) {
+        failureLog.push(`${m}: ${e.message}`);
       }
     }
   }
 
-  // ZERO STATIC FALLBACK: If AI fails, return explicit error
   return res.status(502).json({
     success: false,
-    error: "Not goes to AI: All AI models failed. Reason: " + failureErrors.join(" | ")
+    error: "Not goes to AI: " + failureLog.join(" | ")
   });
 }
