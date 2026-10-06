@@ -301,9 +301,6 @@
     } finally {
       loading = false;
     }
-  });
-      }, 100);
-    }
   }
 
   async function handleFileUpload(e) {
