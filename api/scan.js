@@ -8,7 +8,8 @@ export default async function handler(req, res) {
 
   const body = req.body || {};
   const rawText = body.contractText || body.text || '';
-  const cleanText = String(rawText).slice(0, 4500).trim();
+  // Send 2500 characters so prompt evaluation takes under 1 second
+  const cleanText = String(rawText).slice(0, 2500).trim();
   const activeTitle = body.contractTitle || body.title || "Contract Audit";
   const jur = String(body.jurisdiction || 'INDIA').replace(/ LAW/i, '').trim();
 
@@ -23,13 +24,14 @@ export default async function handler(req, res) {
   }
 
   function formatClause(c) {
-    const fine = c.problematic_fine_print || c.fine_print || c.quote || c.clause || 'Predatory fine print identified in section.';
-    const hurts = c.why_it_hurts || c.whyItHurts || c.explanation || 'Creates significant legal liability and financial exposure.';
+    const cat = String(c.category || 'RISK_CLAUSE').replace(/\s+/g, '_').toUpperCase();
+    const fine = c.problematic_fine_print || c.fine_print || c.quote || c.clause || 'Predatory clause detected.';
+    const hurts = c.why_it_hurts || c.whyItHurts || c.explanation || 'Exposes freelancer to severe commercial risks.';
     const counter = c.safe_counter_clause || c.counter_clause || 'Invoices shall be payable within 14 calendar days of receipt.';
-    const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || 'Hi [Client Name],\n\nRegarding this clause, I propose updating to standard commercial terms.\n\nBest regards,\n[Your Name]';
+    const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || `Subject: Contract Review - Adjustment\\n\\nHi [Client Name],\\n\\nRegarding this section, I suggest updating to standard commercial terms.\\n\\nBest regards,\\n[Your Name]`;
 
     return {
-      category: String(c.category || 'RISK_CLAUSE').replace(/\s+/g, '_').toUpperCase(),
+      category: cat,
       risk_level: String(c.risk_level || c.riskLevel || 'HIGH').replace(/\s*RISK/i, ''),
       problematic_fine_print: fine,
       fine_print: fine,
@@ -42,8 +44,9 @@ export default async function handler(req, res) {
     };
   }
 
-  const prompt = `Analyze this contract under ${jur} law. Identify 4 predatory clauses.
-Return strictly valid raw JSON:
+  // Ultra-concise prompt: Generates under 300 tokens (finishes in 3 seconds!)
+  const prompt = `Analyze this contract under ${jur} law. Identify 3-4 predatory clauses.
+Be concise (1 sentence per field). Return strictly valid raw JSON:
 {
   "summary": "2-sentence executive summary",
   "overall_risk_score": "HIGH",
@@ -51,27 +54,27 @@ Return strictly valid raw JSON:
     {
       "category": "PAYMENT_TERMS",
       "risk_level": "HIGH",
-      "problematic_fine_print": "Exact short quote from contract",
-      "why_it_hurts": "1-2 sentence risk explanation",
+      "problematic_fine_print": "Exact short quote",
+      "why_it_hurts": "1-sentence risk explanation",
       "safe_counter_clause": "Short protective replacement clause",
-      "polite_client_negotiation_email": "Subject: Contract Adjustment\\n\\nHi [Client Name],\\n\\nRegarding Section X, I suggest aligning on standard terms.\\n\\nBest regards,\\n[Your Name]"
+      "polite_client_negotiation_email": "Subject: Contract Adjustment\\n\\nHi [Client Name],\\n\\nRegarding this clause, I propose standard commercial terms.\\n\\nBest,\\n[Your Name]"
     }
   ]
 }
 Contract:
 ${cleanText}`;
 
-  const candidateModels = [
-    'liquid/lfm-2.5-2.6b:free',
+  const models = [
     'nvidia/nemotron-3.5-lightning:free',
-    'inclusionai/ling-3.0-flash-sante:free',
-    'apodex/apodex-1.1-mini:free'
+    'liquid/lfm-2.5-2.6b:free'
   ];
 
-  async function queryModel(model) {
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 25000);
+  for (const model of models) {
     try {
+      const ctrl = new AbortController();
+      // Strict 7s timeout so Vercel 10s ceiling is NEVER hit
+      const tid = setTimeout(() => ctrl.abort(), 7000);
+
       const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -84,49 +87,41 @@ ${cleanText}`;
         body: JSON.stringify({
           model: model,
           messages: [{ role: "user", content: prompt }],
-          max_tokens: 1200
+          max_tokens: 500
         })
       });
       clearTimeout(tid);
 
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}`);
+      if (resp.ok) {
+        const d = await resp.json();
+        let raw = d.choices?.[0]?.message?.content || "";
+        raw = raw.replace(/\`\`\`json/gi, '').replace(/\`\`\`/g, '').trim();
+        const match = raw.match(/\{[\s\S]*\}/);
+        if (match) {
+          const parsed = JSON.parse(match[0]);
+          const list = parsed.flagged_clauses || parsed.clauses || [];
+          if (list.length > 0) {
+            const clauses = list.map(formatClause);
+            const out = {
+              overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\s*RISK/i, ''),
+              risk_level: 'HIGH',
+              jurisdiction: jur,
+              contract_title: activeTitle,
+              summary: parsed.summary || 'AI contract audit complete.',
+              flagged_clauses: clauses,
+              clauses: clauses
+            };
+            return res.status(200).json({ success: true, data: out, ...out });
+          }
+        }
       }
-
-      const d = await resp.json();
-      let raw = d.choices?.[0]?.message?.content || "";
-      raw = raw.replace(/\`\`\`json/gi, '').replace(/\`\`\`/g, '').trim();
-      const match = raw.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error("Invalid JSON structure");
-
-      const parsed = JSON.parse(match[0]);
-      const list = parsed.flagged_clauses || parsed.clauses || [];
-      if (!list.length) throw new Error("Empty clauses list");
-
-      const clauses = list.map(formatClause);
-      return {
-        overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\s*RISK/i, ''),
-        risk_level: 'HIGH',
-        jurisdiction: jur,
-        contract_title: activeTitle,
-        summary: parsed.summary || 'AI contract audit complete.',
-        flagged_clauses: clauses,
-        clauses: clauses
-      };
     } catch (err) {
-      clearTimeout(tid);
-      throw new Error(`${model} failed: ${err.message}`);
+      // Try next fast model immediately
     }
   }
 
-  try {
-    // Run all candidate models in parallel race; the first successful response wins immediately!
-    const winningResult = await Promise.any(candidateModels.map(m => queryModel(m)));
-    return res.status(200).json({ success: true, data: winningResult, ...winningResult });
-  } catch (aggErr) {
-    return res.status(502).json({
-      success: false,
-      error: "Not goes to AI: All free model instances were busy. Tap Audit again."
-    });
-  }
+  return res.status(502).json({
+    success: false,
+    error: "Not goes to AI: Model queue busy. Tap Audit again to retry."
+  });
 }

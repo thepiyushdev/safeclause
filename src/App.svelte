@@ -276,8 +276,7 @@
     hasUnlocked = false;
 
     const controller = new AbortController();
-    // 2 minutes (120 seconds) timeout as requested
-    const timer = setTimeout(() => controller.abort(), 120000);
+    const timer = setTimeout(() => controller.abort(), 15000);
 
     try {
       const res = await fetch("/api/audit", {
@@ -288,7 +287,16 @@
       });
       clearTimeout(timer);
 
-      const json = await res.json();
+      // Safe text parsing: Prevents 'Unexpected token A' crash forever
+      const rawResponse = await res.text();
+      let json = {};
+      try {
+        json = JSON.parse(rawResponse);
+      } catch (parseErr) {
+        throw new Error(res.status === 504 || res.status === 502
+          ? "Vercel timeout (Free model took too long). Tap Audit again."
+          : "Server response error (" + rawResponse.slice(0, 60) + ")");
+      }
 
       if (res.ok && json.success && (json.flagged_clauses || json.clauses || (json.data && json.data.flagged_clauses))) {
         auditResult = json.data || json;
@@ -299,15 +307,15 @@
         }, 100);
       } else {
         auditResult = null;
-        errorMessage = json.error || 'Not goes to AI: AI analysis failed.';
+        errorMessage = json.error || 'Not goes to AI: AI processing failed.';
       }
     } catch (err) {
       clearTimeout(timer);
       auditResult = null;
       if (err.name === 'AbortError') {
-        errorMessage = 'Not goes to AI: Request timed out after 2 minutes. Please try again.';
+        errorMessage = 'Not goes to AI: Request took more than 15s. Tap Audit again.';
       } else {
-        errorMessage = 'Not goes to AI: Connection error (' + err.message + ')';
+        errorMessage = 'Not goes to AI: ' + err.message;
       }
     } finally {
       loading = false;

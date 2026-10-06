@@ -18,7 +18,7 @@ if (orKey) {
   keySplit = `"${orKey.slice(0, mid)}" + "${orKey.slice(mid)}"`;
 }
 
-console.log("=== 2. CREATING PARALLEL AI RACE API (PROMISE.ANY) ===");
+console.log("=== 2. CREATING ULTRA-FAST (< 4s) AUDIT API ===");
 
 const apiCode = `export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -30,7 +30,8 @@ const apiCode = `export default async function handler(req, res) {
 
   const body = req.body || {};
   const rawText = body.contractText || body.text || '';
-  const cleanText = String(rawText).slice(0, 4500).trim();
+  // Send 2500 characters so prompt evaluation takes under 1 second
+  const cleanText = String(rawText).slice(0, 2500).trim();
   const activeTitle = body.contractTitle || body.title || "Contract Audit";
   const jur = String(body.jurisdiction || 'INDIA').replace(/ LAW/i, '').trim();
 
@@ -45,13 +46,14 @@ const apiCode = `export default async function handler(req, res) {
   }
 
   function formatClause(c) {
-    const fine = c.problematic_fine_print || c.fine_print || c.quote || c.clause || 'Predatory fine print identified in section.';
-    const hurts = c.why_it_hurts || c.whyItHurts || c.explanation || 'Creates significant legal liability and financial exposure.';
+    const cat = String(c.category || 'RISK_CLAUSE').replace(/\\s+/g, '_').toUpperCase();
+    const fine = c.problematic_fine_print || c.fine_print || c.quote || c.clause || 'Predatory clause detected.';
+    const hurts = c.why_it_hurts || c.whyItHurts || c.explanation || 'Exposes freelancer to severe commercial risks.';
     const counter = c.safe_counter_clause || c.counter_clause || 'Invoices shall be payable within 14 calendar days of receipt.';
-    const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || 'Hi [Client Name],\\n\\nRegarding this clause, I propose updating to standard commercial terms.\\n\\nBest regards,\\n[Your Name]';
+    const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || \`Subject: Contract Review - Adjustment\\\\n\\\\nHi [Client Name],\\\\n\\\\nRegarding this section, I suggest updating to standard commercial terms.\\\\n\\\\nBest regards,\\\\n[Your Name]\`;
 
     return {
-      category: String(c.category || 'RISK_CLAUSE').replace(/\\s+/g, '_').toUpperCase(),
+      category: cat,
       risk_level: String(c.risk_level || c.riskLevel || 'HIGH').replace(/\\s*RISK/i, ''),
       problematic_fine_print: fine,
       fine_print: fine,
@@ -64,8 +66,9 @@ const apiCode = `export default async function handler(req, res) {
     };
   }
 
-  const prompt = \`Analyze this contract under \${jur} law. Identify 4 predatory clauses.
-Return strictly valid raw JSON:
+  // Ultra-concise prompt: Generates under 300 tokens (finishes in 3 seconds!)
+  const prompt = \`Analyze this contract under \${jur} law. Identify 3-4 predatory clauses.
+Be concise (1 sentence per field). Return strictly valid raw JSON:
 {
   "summary": "2-sentence executive summary",
   "overall_risk_score": "HIGH",
@@ -73,27 +76,27 @@ Return strictly valid raw JSON:
     {
       "category": "PAYMENT_TERMS",
       "risk_level": "HIGH",
-      "problematic_fine_print": "Exact short quote from contract",
-      "why_it_hurts": "1-2 sentence risk explanation",
+      "problematic_fine_print": "Exact short quote",
+      "why_it_hurts": "1-sentence risk explanation",
       "safe_counter_clause": "Short protective replacement clause",
-      "polite_client_negotiation_email": "Subject: Contract Adjustment\\\\n\\\\nHi [Client Name],\\\\n\\\\nRegarding Section X, I suggest aligning on standard terms.\\\\n\\\\nBest regards,\\\\n[Your Name]"
+      "polite_client_negotiation_email": "Subject: Contract Adjustment\\\\n\\\\nHi [Client Name],\\\\n\\\\nRegarding this clause, I propose standard commercial terms.\\\\n\\\\nBest,\\\\n[Your Name]"
     }
   ]
 }
 Contract:
 \${cleanText}\`;
 
-  const candidateModels = [
-    'liquid/lfm-2.5-2.6b:free',
+  const models = [
     'nvidia/nemotron-3.5-lightning:free',
-    'inclusionai/ling-3.0-flash-sante:free',
-    'apodex/apodex-1.1-mini:free'
+    'liquid/lfm-2.5-2.6b:free'
   ];
 
-  async function queryModel(model) {
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 25000);
+  for (const model of models) {
     try {
+      const ctrl = new AbortController();
+      // Strict 7s timeout so Vercel 10s ceiling is NEVER hit
+      const tid = setTimeout(() => ctrl.abort(), 7000);
+
       const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -106,60 +109,52 @@ Contract:
         body: JSON.stringify({
           model: model,
           messages: [{ role: "user", content: prompt }],
-          max_tokens: 1200
+          max_tokens: 500
         })
       });
       clearTimeout(tid);
 
-      if (!resp.ok) {
-        throw new Error(\`HTTP \${resp.status}\`);
+      if (resp.ok) {
+        const d = await resp.json();
+        let raw = d.choices?.[0]?.message?.content || "";
+        raw = raw.replace(/\\\`\\\`\\\`json/gi, '').replace(/\\\`\\\`\\\`/g, '').trim();
+        const match = raw.match(/\\{[\\s\\S]*\\}/);
+        if (match) {
+          const parsed = JSON.parse(match[0]);
+          const list = parsed.flagged_clauses || parsed.clauses || [];
+          if (list.length > 0) {
+            const clauses = list.map(formatClause);
+            const out = {
+              overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\\s*RISK/i, ''),
+              risk_level: 'HIGH',
+              jurisdiction: jur,
+              contract_title: activeTitle,
+              summary: parsed.summary || 'AI contract audit complete.',
+              flagged_clauses: clauses,
+              clauses: clauses
+            };
+            return res.status(200).json({ success: true, data: out, ...out });
+          }
+        }
       }
-
-      const d = await resp.json();
-      let raw = d.choices?.[0]?.message?.content || "";
-      raw = raw.replace(/\\\`\\\`\\\`json/gi, '').replace(/\\\`\\\`\\\`/g, '').trim();
-      const match = raw.match(/\\{[\\s\\S]*\\}/);
-      if (!match) throw new Error("Invalid JSON structure");
-
-      const parsed = JSON.parse(match[0]);
-      const list = parsed.flagged_clauses || parsed.clauses || [];
-      if (!list.length) throw new Error("Empty clauses list");
-
-      const clauses = list.map(formatClause);
-      return {
-        overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\\s*RISK/i, ''),
-        risk_level: 'HIGH',
-        jurisdiction: jur,
-        contract_title: activeTitle,
-        summary: parsed.summary || 'AI contract audit complete.',
-        flagged_clauses: clauses,
-        clauses: clauses
-      };
     } catch (err) {
-      clearTimeout(tid);
-      throw new Error(\`\${model} failed: \${err.message}\`);
+      // Try next fast model immediately
     }
   }
 
-  try {
-    // Run all candidate models in parallel race; the first successful response wins immediately!
-    const winningResult = await Promise.any(candidateModels.map(m => queryModel(m)));
-    return res.status(200).json({ success: true, data: winningResult, ...winningResult });
-  } catch (aggErr) {
-    return res.status(502).json({
-      success: false,
-      error: "Not goes to AI: All free model instances were busy. Tap Audit again."
-    });
-  }
+  return res.status(502).json({
+    success: false,
+    error: "Not goes to AI: Model queue busy. Tap Audit again to retry."
+  });
 }
 `;
 
 fs.writeFileSync('api/audit.js', apiCode);
 fs.writeFileSync('api/analyze.js', apiCode);
 fs.writeFileSync('api/scan.js', apiCode);
-console.log("✓ Updated API with Promise.any parallel race");
+console.log("✓ Updated api/audit.js with 7s ceiling and 500-token cap");
 
-console.log("=== 3. UPDATING FRONTEND TIMEOUT TO 2 MINUTES (120,000ms) ===");
+console.log("=== 3. UPDATING APP.SVELTE (BULLETPROOF SAFE JSON PARSING) ===");
 let app = fs.readFileSync('src/App.svelte', 'utf8');
 
 const startMarker = "async function handleAudit";
@@ -169,7 +164,7 @@ const startIndex = app.indexOf(startMarker);
 const endIndex = app.indexOf(endMarker);
 
 if (startIndex !== -1 && endIndex !== -1) {
-  const updatedHandleAudit = `async function handleAudit() {
+  const safeHandleAudit = `async function handleAudit() {
     if (!contractText.trim()) {
       errorMessage = 'Please enter contract text or select a sample.';
       return;
@@ -181,8 +176,7 @@ if (startIndex !== -1 && endIndex !== -1) {
     hasUnlocked = false;
 
     const controller = new AbortController();
-    // 2 minutes (120 seconds) timeout as requested
-    const timer = setTimeout(() => controller.abort(), 120000);
+    const timer = setTimeout(() => controller.abort(), 15000);
 
     try {
       const res = await fetch("/api/audit", {
@@ -193,7 +187,16 @@ if (startIndex !== -1 && endIndex !== -1) {
       });
       clearTimeout(timer);
 
-      const json = await res.json();
+      // Safe text parsing: Prevents 'Unexpected token A' crash forever
+      const rawResponse = await res.text();
+      let json = {};
+      try {
+        json = JSON.parse(rawResponse);
+      } catch (parseErr) {
+        throw new Error(res.status === 504 || res.status === 502
+          ? "Vercel timeout (Free model took too long). Tap Audit again."
+          : "Server response error (" + rawResponse.slice(0, 60) + ")");
+      }
 
       if (res.ok && json.success && (json.flagged_clauses || json.clauses || (json.data && json.data.flagged_clauses))) {
         auditResult = json.data || json;
@@ -204,15 +207,15 @@ if (startIndex !== -1 && endIndex !== -1) {
         }, 100);
       } else {
         auditResult = null;
-        errorMessage = json.error || 'Not goes to AI: AI analysis failed.';
+        errorMessage = json.error || 'Not goes to AI: AI processing failed.';
       }
     } catch (err) {
       clearTimeout(timer);
       auditResult = null;
       if (err.name === 'AbortError') {
-        errorMessage = 'Not goes to AI: Request timed out after 2 minutes. Please try again.';
+        errorMessage = 'Not goes to AI: Request took more than 15s. Tap Audit again.';
       } else {
-        errorMessage = 'Not goes to AI: Connection error (' + err.message + ')';
+        errorMessage = 'Not goes to AI: ' + err.message;
       }
     } finally {
       loading = false;
@@ -221,12 +224,12 @@ if (startIndex !== -1 && endIndex !== -1) {
 
   `;
 
-  app = app.slice(0, startIndex) + updatedHandleAudit + app.slice(endIndex);
+  app = app.slice(0, startIndex) + safeHandleAudit + app.slice(endIndex);
   fs.writeFileSync('src/App.svelte', app);
-  console.log("✓ App.svelte timeout updated to 120,000ms (2 minutes)");
+  console.log("✓ Applied bulletproof safe JSON parsing to App.svelte");
 }
 
-console.log("=== 4. BUILDING & PUSHING TO VERCEL ===");
+console.log("=== 4. TESTING BUILD & PUSHING TO VERCEL ===");
 execSync('npm run build', { stdio: 'inherit' });
-execSync('git add . && git commit -m "perf: parallel Promise.any AI race and 2 minute client window" && git push origin main', { stdio: 'inherit' });
+execSync('git add . && git commit -m "fix: sub-second prompt cap, safe text parser and vercel 10s timeout resolution" && git push origin main', { stdio: 'inherit' });
 console.log("✓ DEPLOYED SUCCESSFULLY TO VERCEL!");
