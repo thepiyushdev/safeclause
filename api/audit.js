@@ -20,11 +20,14 @@ export default async function handler(req, res) {
 
   function sanitize(str) {
     if (!str) return '';
-    return String(str).replace(/\\n/g, '\n').replace(/\\"/g, '"').trim();
+    return String(str)
+      .replace(/\\n/g, '\n')
+      .replace(/\\"/g, '"')
+      .trim();
   }
 
   function populateItem(c) {
-    const fine = sanitize(c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.clause || 'Unfavorable contract clause identified.');
+    const fine = sanitize(c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.clause || 'Predatory fine print identified.');
     const hurts = sanitize(c.why_it_hurts || c.whyItHurts || c.why_it_hurts_you || c.explanation || 'Places severe liability and commercial exposure on the contractor.');
     const counter = sanitize(c.safe_counter_clause || c.counter_clause || c.safeCounterClause || c.counterClause || 'Invoices shall be payable strictly within 14 calendar days of issuance (Net-14).');
     
@@ -47,16 +50,16 @@ export default async function handler(req, res) {
     };
   }
 
-  const prompt = `You are SafeClause, a senior contract risk lawyer. Analyze this contract under ${jur} legal framework.
+  const prompt = `Analyze this contract under ${jur} legal framework.
 Identify 4 high-risk predatory clauses from this specific document text.
 
 CRITICAL INSTRUCTIONS:
 1. "problematic_fine_print": Must be an EXACT verbatim quote extracted directly from the contract text.
 2. "why_it_hurts": Clear 2-3 sentence breakdown of the financial or legal trap.
-3. "safe_counter_clause": Must be ACTUAL binding legal replacement contract clause text.
-4. "polite_client_negotiation_email": Write a complete, respectful, highly persuasive negotiation email with Subject, Greeting, Reasoning, Safe Term, and Sign-off.
+3. "safe_counter_clause": Must be ACTUAL binding legal replacement contract clause text (Net-14, liability caps, IP protection).
+4. "polite_client_negotiation_email": Write a complete, respectful, highly persuasive negotiation email with Subject, Greeting, Reasoning, Quoted safe clause, and Sign-off.
 
-Respond strictly in valid raw JSON:
+You MUST respond strictly with a valid JSON object. No explanation outside JSON.
 {
   "summary": "2-3 sentence executive risk assessment for this contract",
   "overall_risk_score": "HIGH",
@@ -78,8 +81,9 @@ ${cleanText}`;
 
   try {
     const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 8500);
+    const tid = setTimeout(() => ctrl.abort(), 9000);
 
+    // Calling Groq WITHOUT response_format to bypass strict 400 validation error
     const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -89,9 +93,12 @@ ${cleanText}`;
       signal: ctrl.signal,
       body: JSON.stringify({
         model: "openai/gpt-oss-20b",
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" },
-        temperature: 0.2
+        messages: [
+          { role: "system", content: "You are SafeClause, a senior contract risk lawyer. You output raw valid JSON only." },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.2,
+        max_tokens: 3000
       })
     });
     clearTimeout(tid);
@@ -103,13 +110,23 @@ ${cleanText}`;
 
     const d = await resp.json();
     let raw = d.choices?.[0]?.message?.content || "";
+    
+    // Robust JSON extraction
     raw = raw.replace(/\`\`\`json/gi, '').replace(/\`\`\`/g, '').trim();
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) return res.status(502).json({ success: false, error: "AI returned invalid JSON." });
+    const firstBrace = raw.indexOf('{');
+    const lastBrace = raw.lastIndexOf('}');
+    
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+      return res.status(502).json({ success: false, error: "AI did not return valid JSON structure." });
+    }
 
-    const parsed = JSON.parse(match[0]);
+    const jsonString = raw.slice(firstBrace, lastBrace + 1);
+    const parsed = JSON.parse(jsonString);
     const list = parsed.flagged_clauses || parsed.clauses || [];
-    if (!list.length) return res.status(502).json({ success: false, error: "No clauses flagged." });
+
+    if (!list.length) {
+      return res.status(502).json({ success: false, error: "No risk clauses identified in the document." });
+    }
 
     const clauses = list.map(populateItem);
     const out = {
@@ -124,6 +141,6 @@ ${cleanText}`;
 
     return res.status(200).json({ success: true, data: out, ...out });
   } catch (err) {
-    return res.status(502).json({ success: false, error: "AI request failed: " + err.message });
+    return res.status(502).json({ success: false, error: "Audit failed: " + err.message });
   }
 }
