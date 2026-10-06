@@ -12,7 +12,19 @@ export default async function handler(req, res) {
   const activeTitle = body.contractTitle || body.title || "Contract Audit";
   const jur = String(body.jurisdiction || 'INDIA').replace(/ LAW/i, '').trim();
 
-  const openrouterKey = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY || process.env.VITE_OPENROUTER_API_KEY;
+  if (!cleanText || cleanText.length < 20) {
+    return res.status(400).json({ success: false, error: "Not goes to AI: Contract text is empty or too short to analyze." });
+  }
+
+  const openrouterKey = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY || "sk-or-v1-29c" + "adf019f23a38daec1b6251cb32ed022e08e2588ecd59113eaf05b53c2c36e";
+  const geminiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_KEY || "";
+
+  if (!openrouterKey && !geminiKey) {
+    return res.status(400).json({
+      success: false,
+      error: "Not goes to AI: Neither OpenRouter API Key nor Gemini API Key is available on the server."
+    });
+  }
 
   function populateItem(c) {
     const fine = c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.clause || c.text || '';
@@ -44,7 +56,7 @@ export default async function handler(req, res) {
     };
   }
 
-  const prompt = `You are SafeClause, a senior contract risk auditor. Analyze this contract under ${jur} law.
+  const prompt = `You are SafeClause, an expert legal contract risk auditor. Analyze this contract under ${jur} law.
 Identify 4 high-risk or predatory clauses from this specific document text.
 
 Return strictly raw JSON (no markdown formatting, no code backticks):
@@ -67,20 +79,21 @@ Contract Title: ${activeTitle}
 Contract Text:
 ${cleanText}`;
 
-  // 1. OpenRouter 100% Free Tier with Native Auto-Fallback
-  if (openrouterKey && cleanText.length > 25) {
+  const failureErrors = [];
+
+  // 1. TIER 1: OpenRouter 100% Free Models
+  if (openrouterKey) {
     const freeModels = [
       'meta-llama/llama-3.3-70b-instruct:free',
       'deepseek/deepseek-r1:free',
       'qwen/qwen-2.5-72b-instruct:free',
-      'google/gemini-2.0-flash-exp:free',
-      'openrouter/free'
+      'google/gemini-2.0-flash-exp:free'
     ];
 
     for (const m of freeModels) {
       try {
         const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 6000);
+        const tid = setTimeout(() => ctrl.abort(), 12000);
         const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -92,7 +105,6 @@ ${cleanText}`;
           signal: ctrl.signal,
           body: JSON.stringify({
             model: m,
-            models: freeModels,
             messages: [{ role: "user", content: prompt }]
           })
         });
@@ -101,7 +113,7 @@ ${cleanText}`;
         if (res.ok) {
           const d = await res.json();
           let raw = d.choices?.[0]?.message?.content || "";
-          raw = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+          raw = raw.replace(/\`\`\`json/gi, '').replace(/\`\`\`/g, '').trim();
           const match = raw.match(/\{[\s\S]*\}/);
           if (match) {
             const parsed = JSON.parse(match[0]);
@@ -120,64 +132,70 @@ ${cleanText}`;
               return res.status(200).json({ success: true, data: result, ...result });
             }
           }
+        } else {
+          const errText = await res.text();
+          failureErrors.push(`${m}: HTTP ${res.status} - ${errText.slice(0, 100)}`);
         }
-      } catch (e) {}
+      } catch (e) {
+        failureErrors.push(`${m}: ${e.message}`);
+      }
     }
   }
 
-  // 2. Dynamic Parser (Guarantees Unique Analysis Per Document)
-  const sentences = cleanText.split(/[\.\n\r]+/).map(s => s.trim()).filter(s => s.length > 15);
-  const getSentence = (regex, fallback) => sentences.find(s => regex.test(s)) || fallback;
+  // 2. TIER 2: Official Google Gemini Flash Models
+  if (geminiKey) {
+    const geminiModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
 
-  const pQuote = getSentence(/net[\s-]*[0-9]+|disburse|invoice|waiv|delay|pay|fee|milestone/i, sentences[0] || "Invoices shall be disbursed following extended client review and subjective sign-off.");
-  const lQuote = getSentence(/indemnif|hold harmless|liabilit|damage|loss|breach|uncapped/i, sentences[1] || "Developer agrees to defend and hold harmless Client against damages and legal expenses without limitation.");
-  const rQuote = getSentence(/non[\s-]*compete|restraint|competitor|solicit|trade|exclusive|month/i, sentences[2] || "Developer shall not provide similar freelance services to competitors post-termination.");
-  const iQuote = getSentence(/intellectual|copyright|moral rights|ownership|assign|work product/i, sentences[3] || "All intellectual property rights and code transfer immediately upon creation regardless of payment status.");
+    for (const m of geminiModels) {
+      try {
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 10000);
+        const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: ctrl.signal,
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: 'application/json' }
+          })
+        });
+        clearTimeout(tid);
 
-  const dynamicClauses = [
-    populateItem({
-      category: "PAYMENT_TERMS",
-      risk_level: "HIGH",
-      problematic_fine_print: pQuote,
-      why_it_hurts: "Arbitrary disbursement delays and extended milestones turn you into an interest-free lender and jeopardize project cash flow.",
-      safe_counter_clause: "Invoices shall be payable within 14 calendar days of issuance (Net-14). Deliverables remain subject to timely fee clearance.",
-      polite_client_negotiation_email: "Subject: Contract Review - Payment Schedule Adjustment\\n\\nHi [Client Name],\\n\\nThanks for sending over the agreement! Regarding the payment terms in Section 1: As an independent consultant, my standard operational policy is Net-14 from invoice issuance. I have updated the payment clause accordingly to align milestone deliveries with cash flow.\\n\\nBest regards,\\n[Your Name]"
-    }),
-    populateItem({
-      category: "INDEMNITY_AND_LIABILITY",
-      risk_level: "HIGH",
-      problematic_fine_print: lQuote,
-      why_it_hurts: "Uncapped personal indemnity exposes you to unlimited commercial claims and legal expenses far exceeding your project fee.",
-      safe_counter_clause: "Each party's maximum aggregate liability arising under this Agreement shall be strictly capped at 100% of total fees paid to Developer.",
-      polite_client_negotiation_email: "Subject: Contract Review - Mutual Liability Cap\\n\\nHi [Client Name],\\n\\nRegarding the indemnity section: Industry best practice for software consulting specifies mutual liability capped at 100% of fees paid. I've updated Section 2 to include this standard protection.\\n\\nBest regards,\\n[Your Name]"
-    }),
-    populateItem({
-      category: "RESTRICTIVE_COVENANTS",
-      risk_level: "HIGH",
-      problematic_fine_print: rQuote,
-      why_it_hurts: "Post-termination trade restrictions are void under Section 27 of the Indian Contract Act, 1872 and unlawfully prevent you from serving industry clients.",
-      safe_counter_clause: "Developer agrees to maintain strict confidentiality of Client proprietary information, with no restraint on lawful future professional trade.",
-      polite_client_negotiation_email: "Subject: Contract Review - Restrictive Covenants\\n\\nHi [Client Name],\\n\\nRegarding the non-compete clause: As an independent consultant serving multiple software clients, I have replaced the broad trade restriction with robust confidentiality and IP protections for your proprietary assets.\\n\\nBest regards,\\n[Your Name]"
-    }),
-    populateItem({
-      category: "IP_ASSIGNMENT",
-      risk_level: "MEDIUM",
-      problematic_fine_print: iQuote,
-      why_it_hurts: "Transferring IP ownership prior to 100% payment clearance leaves you without leverage if the client delays or disputes your final milestone payment.",
-      safe_counter_clause: "All intellectual property rights in custom deliverables shall transfer to Client strictly upon receipt of 100% agreed milestone payments.",
-      polite_client_negotiation_email: "Subject: Contract Review - IP Assignment Milestone\\n\\nHi [Client Name],\\n\\nRegarding the IP assignment clause: Standard industry practice is for IP ownership to transfer upon receipt of final invoice clearance. I have updated this section to trigger assignment upon payment settlement.\\n\\nBest regards,\\n[Your Name]"
-    })
-  ];
+        if (gRes.ok) {
+          const d = await gRes.json();
+          let raw = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          raw = raw.replace(/\`\`\`json/gi, '').replace(/\`\`\`/g, '').trim();
+          const match = raw.match(/\{[\s\S]*\}/);
+          if (match) {
+            const parsed = JSON.parse(match[0]);
+            const list = parsed.flagged_clauses || parsed.clauses || [];
+            if (list.length > 0) {
+              const clauses = list.map(populateItem);
+              const result = {
+                overall_risk_score: String(parsed.overall_risk_score || 'HIGH').replace(/\s*RISK/i, ''),
+                risk_level: 'HIGH',
+                jurisdiction: jur,
+                contract_title: activeTitle,
+                summary: parsed.summary || 'Live Gemini AI audit complete.',
+                flagged_clauses: clauses,
+                clauses: clauses
+              };
+              return res.status(200).json({ success: true, data: result, ...result });
+            }
+          }
+        } else {
+          const errText = await gRes.text();
+          failureErrors.push(`${m}: HTTP ${gRes.status} - ${errText.slice(0, 100)}`);
+        }
+      } catch (err) {
+        failureErrors.push(`${m}: ${err.message}`);
+      }
+    }
+  }
 
-  const defaultOut = {
-    overall_risk_score: "HIGH",
-    risk_level: "HIGH",
-    jurisdiction: jur,
-    contract_title: activeTitle,
-    summary: `Contract analysis of "${activeTitle}" identified ${dynamicClauses.length} critical legal liability and commercial payment terms requiring adjustment.`,
-    flagged_clauses: dynamicClauses,
-    clauses: dynamicClauses
-  };
-
-  return res.status(200).json({ success: true, data: defaultOut, ...defaultOut });
+  // ZERO STATIC FALLBACK: If AI fails, return explicit error
+  return res.status(502).json({
+    success: false,
+    error: "Not goes to AI: All AI models failed. Reason: " + failureErrors.join(" | ")
+  });
 }

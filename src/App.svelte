@@ -265,8 +265,8 @@
   }
 
   async function handleAudit() {
-    if (!contractText || contractText.trim().length < 40) {
-      errorMessage = 'Please paste at least 40 characters of contract clauses.';
+    if (!contractText.trim()) {
+      errorMessage = 'Please enter contract text or select a sample.';
       return;
     }
 
@@ -275,289 +275,33 @@
     auditResult = null;
     hasUnlocked = false;
 
-    // Guaranteed Audit Engine (Runs locally if API fails)
-    const textToScan = contractText || '';
-    const isNet90 = /net[\s-]*90|net[\s-]*60|waiver|dispute|delay/i.test(textToScan);
-    const isIndemnity = /indemnif|hold harmless|unlimited liability|damages/i.test(textToScan);
-    const isNonCompete = /non[\s-]*compete|restraint of trade|36 month|competitor/i.test(textToScan);
-
-    const generatedClauses = [
-      {
-        category: "PAYMENT TERMS",
-        severity: "HIGH RISK",
-        risk: "HIGH RISK",
-        problematicFinePrint: "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
-        finePrint: "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
-        whyItHurts: "The Net-90 payment term combined with an indefinite waiver of payment if the client delays sign-off creates a cash-flow trap and leaves the freelancer unpaid for work already performed.",
-        why_it_hurts: "The Net-90 payment term combined with an indefinite waiver of payment if the client delays sign-off creates a cash-flow trap and leaves the freelancer unpaid for work already performed."
-      },
-      {
-        category: "INDEMNITY & LIABILITY",
-        severity: "HIGH RISK",
-        risk: "HIGH RISK",
-        problematicFinePrint: "Developer agrees to defend, indemnify, and hold harmless the Client against all liabilities, claims, damages without monetary limitation.",
-        finePrint: "Developer agrees to defend, indemnify, and hold harmless the Client against all liabilities, claims, damages without monetary limitation.",
-        whyItHurts: "Exposes the freelancer to unlimited personal liability for client damages without an aggregate liability cap equal to the project fee.",
-        why_it_hurts: "Exposes the freelancer to unlimited personal liability for client damages without an aggregate liability cap equal to the project fee."
-      },
-      {
-        category: "RESTRICTIVE COVENANTS",
-        severity: "HIGH RISK",
-        risk: "HIGH RISK",
-        problematicFinePrint: "Developer agrees not to engage in any business or perform freelance services for competitors worldwide for 36 months post-termination.",
-        finePrint: "Developer agrees not to engage in any business or perform freelance services for competitors worldwide for 36 months post-termination.",
-        whyItHurts: "Completely void under Section 27 of the Indian Contract Act, 1872 as restraint of trade, but used by clients to intimidate freelancers.",
-        why_it_hurts: "Completely void under Section 27 of the Indian Contract Act, 1872 as restraint of trade, but used by clients to intimidate freelancers."
-      },
-      {
-        category: "IP ASSIGNMENT",
-        severity: "MEDIUM RISK",
-        risk: "MEDIUM RISK",
-        problematicFinePrint: "All work product and intellectual property rights transfer immediately upon creation regardless of payment receipt status.",
-        finePrint: "All work product and intellectual property rights transfer immediately upon creation regardless of payment receipt status.",
-        whyItHurts: "IP should only transfer after 100% of the invoice balance has been cleared into your bank account.",
-        why_it_hurts: "IP should only transfer after 100% of the invoice balance has been cleared into your bank account."
-      }
-    ];
-
-    const richClauses = [
-  {
-    "category": "PAYMENT_TERMS",
-    "risk_level": "HIGH",
-    "riskLevel": "HIGH",
-    "severity": "HIGH",
-    "problematic_fine_print": "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
-    "fine_print": "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
-    "problematicFinePrint": "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
-    "finePrint": "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
-    "quote": "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
-    "problematic_clause": "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
-    "original_clause": "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
-    "clause": "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
-    "clause_text": "The Client shall disburse invoices strictly on a Net-90 schedule following final sign-off by the end-client. If the end-client delays sign-off or disputes deliverables, Developer agrees to waive invoice payments indefinitely without claim.",
-    "why_it_hurts": "Net-90 payment terms force you to act as an interest-free lender for 3 months. The indefinite waiver clause allows the client to fabricate subjective disputes and withhold your payment permanently.",
-    "whyItHurts": "Net-90 payment terms force you to act as an interest-free lender for 3 months. The indefinite waiver clause allows the client to fabricate subjective disputes and withhold your payment permanently.",
-    "why_it_hurts_you": "Net-90 payment terms force you to act as an interest-free lender for 3 months. The indefinite waiver clause allows the client to fabricate subjective disputes and withhold your payment permanently.",
-    "explanation": "Net-90 payment terms force you to act as an interest-free lender for 3 months. The indefinite waiver clause allows the client to fabricate subjective disputes and withhold your payment permanently.",
-    "reason": "Net-90 payment terms force you to act as an interest-free lender for 3 months. The indefinite waiver clause allows the client to fabricate subjective disputes and withhold your payment permanently.",
-    "impact": "Net-90 payment terms force you to act as an interest-free lender for 3 months. The indefinite waiver clause allows the client to fabricate subjective disputes and withhold your payment permanently.",
-    "safe_counter_clause": "Invoices shall be payable within 14 calendar days of receipt (Net-14). Payment is independent of third-party end-client sign-offs. Developer reserves the right to suspend services if payment is overdue by more than 7 days.",
-    "safeCounterClause": "Invoices shall be payable within 14 calendar days of receipt (Net-14). Payment is independent of third-party end-client sign-offs. Developer reserves the right to suspend services if payment is overdue by more than 7 days.",
-    "counter_clause": "Invoices shall be payable within 14 calendar days of receipt (Net-14). Payment is independent of third-party end-client sign-offs. Developer reserves the right to suspend services if payment is overdue by more than 7 days.",
-    "counterClause": "Invoices shall be payable within 14 calendar days of receipt (Net-14). Payment is independent of third-party end-client sign-offs. Developer reserves the right to suspend services if payment is overdue by more than 7 days.",
-    "safe_clause": "Invoices shall be payable within 14 calendar days of receipt (Net-14). Payment is independent of third-party end-client sign-offs. Developer reserves the right to suspend services if payment is overdue by more than 7 days.",
-    "suggested_clause": "Invoices shall be payable within 14 calendar days of receipt (Net-14). Payment is independent of third-party end-client sign-offs. Developer reserves the right to suspend services if payment is overdue by more than 7 days.",
-    "polite_client_negotiation_email": "Hi [Client Name],\n\nThanks for sharing the agreement! Regarding the payment terms in Section 1: As an independent consultant, my standard commercial policy is Net-14 from invoice issuance, without dependency on third-party sign-offs. I've updated the wording to Net-14 to align with standard project cash flows. Let me know if you'd like me to send over the updated copy.\n\nBest regards,\n[Your Name]",
-    "politeClientNegotiationEmail": "Hi [Client Name],\n\nThanks for sharing the agreement! Regarding the payment terms in Section 1: As an independent consultant, my standard commercial policy is Net-14 from invoice issuance, without dependency on third-party sign-offs. I've updated the wording to Net-14 to align with standard project cash flows. Let me know if you'd like me to send over the updated copy.\n\nBest regards,\n[Your Name]",
-    "negotiation_email": "Hi [Client Name],\n\nThanks for sharing the agreement! Regarding the payment terms in Section 1: As an independent consultant, my standard commercial policy is Net-14 from invoice issuance, without dependency on third-party sign-offs. I've updated the wording to Net-14 to align with standard project cash flows. Let me know if you'd like me to send over the updated copy.\n\nBest regards,\n[Your Name]",
-    "client_negotiation_email": "Hi [Client Name],\n\nThanks for sharing the agreement! Regarding the payment terms in Section 1: As an independent consultant, my standard commercial policy is Net-14 from invoice issuance, without dependency on third-party sign-offs. I've updated the wording to Net-14 to align with standard project cash flows. Let me know if you'd like me to send over the updated copy.\n\nBest regards,\n[Your Name]",
-    "email": "Hi [Client Name],\n\nThanks for sharing the agreement! Regarding the payment terms in Section 1: As an independent consultant, my standard commercial policy is Net-14 from invoice issuance, without dependency on third-party sign-offs. I've updated the wording to Net-14 to align with standard project cash flows. Let me know if you'd like me to send over the updated copy.\n\nBest regards,\n[Your Name]",
-    "email_template": "Hi [Client Name],\n\nThanks for sharing the agreement! Regarding the payment terms in Section 1: As an independent consultant, my standard commercial policy is Net-14 from invoice issuance, without dependency on third-party sign-offs. I've updated the wording to Net-14 to align with standard project cash flows. Let me know if you'd like me to send over the updated copy.\n\nBest regards,\n[Your Name]"
-  },
-  {
-    "category": "INDEMNITY_AND_LIABILITY",
-    "risk_level": "HIGH",
-    "riskLevel": "HIGH",
-    "severity": "HIGH",
-    "problematic_fine_print": "Developer agrees to defend, indemnify, and hold harmless the Client and its affiliates against any and all liabilities, losses, damages, and corporate legal expenses without limitation.",
-    "fine_print": "Developer agrees to defend, indemnify, and hold harmless the Client and its affiliates against any and all liabilities, losses, damages, and corporate legal expenses without limitation.",
-    "problematicFinePrint": "Developer agrees to defend, indemnify, and hold harmless the Client and its affiliates against any and all liabilities, losses, damages, and corporate legal expenses without limitation.",
-    "finePrint": "Developer agrees to defend, indemnify, and hold harmless the Client and its affiliates against any and all liabilities, losses, damages, and corporate legal expenses without limitation.",
-    "quote": "Developer agrees to defend, indemnify, and hold harmless the Client and its affiliates against any and all liabilities, losses, damages, and corporate legal expenses without limitation.",
-    "problematic_clause": "Developer agrees to defend, indemnify, and hold harmless the Client and its affiliates against any and all liabilities, losses, damages, and corporate legal expenses without limitation.",
-    "original_clause": "Developer agrees to defend, indemnify, and hold harmless the Client and its affiliates against any and all liabilities, losses, damages, and corporate legal expenses without limitation.",
-    "clause": "Developer agrees to defend, indemnify, and hold harmless the Client and its affiliates against any and all liabilities, losses, damages, and corporate legal expenses without limitation.",
-    "clause_text": "Developer agrees to defend, indemnify, and hold harmless the Client and its affiliates against any and all liabilities, losses, damages, and corporate legal expenses without limitation.",
-    "why_it_hurts": "Uncapped personal indemnity exposes you to unlimited liability. A minor software bug or downtime could trigger multi-lakh lawsuits against you personally without any liability ceiling.",
-    "whyItHurts": "Uncapped personal indemnity exposes you to unlimited liability. A minor software bug or downtime could trigger multi-lakh lawsuits against you personally without any liability ceiling.",
-    "why_it_hurts_you": "Uncapped personal indemnity exposes you to unlimited liability. A minor software bug or downtime could trigger multi-lakh lawsuits against you personally without any liability ceiling.",
-    "explanation": "Uncapped personal indemnity exposes you to unlimited liability. A minor software bug or downtime could trigger multi-lakh lawsuits against you personally without any liability ceiling.",
-    "reason": "Uncapped personal indemnity exposes you to unlimited liability. A minor software bug or downtime could trigger multi-lakh lawsuits against you personally without any liability ceiling.",
-    "impact": "Uncapped personal indemnity exposes you to unlimited liability. A minor software bug or downtime could trigger multi-lakh lawsuits against you personally without any liability ceiling.",
-    "safe_counter_clause": "Each party's maximum aggregate liability arising under or related to this Agreement shall be strictly capped at 100% of the total fees actually received by Developer under the applicable Statement of Work.",
-    "safeCounterClause": "Each party's maximum aggregate liability arising under or related to this Agreement shall be strictly capped at 100% of the total fees actually received by Developer under the applicable Statement of Work.",
-    "counter_clause": "Each party's maximum aggregate liability arising under or related to this Agreement shall be strictly capped at 100% of the total fees actually received by Developer under the applicable Statement of Work.",
-    "counterClause": "Each party's maximum aggregate liability arising under or related to this Agreement shall be strictly capped at 100% of the total fees actually received by Developer under the applicable Statement of Work.",
-    "safe_clause": "Each party's maximum aggregate liability arising under or related to this Agreement shall be strictly capped at 100% of the total fees actually received by Developer under the applicable Statement of Work.",
-    "suggested_clause": "Each party's maximum aggregate liability arising under or related to this Agreement shall be strictly capped at 100% of the total fees actually received by Developer under the applicable Statement of Work.",
-    "polite_client_negotiation_email": "Hi [Client Name],\n\nRegarding the indemnity and liability section: To ensure balanced risk allocation, our standard practice is to include a mutual liability cap equal to 100% of project fees paid. I've adjusted Section 2 to reflect this industry-standard aggregate limit. Looking forward to getting started once this is finalized!\n\nBest,\n[Your Name]",
-    "politeClientNegotiationEmail": "Hi [Client Name],\n\nRegarding the indemnity and liability section: To ensure balanced risk allocation, our standard practice is to include a mutual liability cap equal to 100% of project fees paid. I've adjusted Section 2 to reflect this industry-standard aggregate limit. Looking forward to getting started once this is finalized!\n\nBest,\n[Your Name]",
-    "negotiation_email": "Hi [Client Name],\n\nRegarding the indemnity and liability section: To ensure balanced risk allocation, our standard practice is to include a mutual liability cap equal to 100% of project fees paid. I've adjusted Section 2 to reflect this industry-standard aggregate limit. Looking forward to getting started once this is finalized!\n\nBest,\n[Your Name]",
-    "client_negotiation_email": "Hi [Client Name],\n\nRegarding the indemnity and liability section: To ensure balanced risk allocation, our standard practice is to include a mutual liability cap equal to 100% of project fees paid. I've adjusted Section 2 to reflect this industry-standard aggregate limit. Looking forward to getting started once this is finalized!\n\nBest,\n[Your Name]",
-    "email": "Hi [Client Name],\n\nRegarding the indemnity and liability section: To ensure balanced risk allocation, our standard practice is to include a mutual liability cap equal to 100% of project fees paid. I've adjusted Section 2 to reflect this industry-standard aggregate limit. Looking forward to getting started once this is finalized!\n\nBest,\n[Your Name]",
-    "email_template": "Hi [Client Name],\n\nRegarding the indemnity and liability section: To ensure balanced risk allocation, our standard practice is to include a mutual liability cap equal to 100% of project fees paid. I've adjusted Section 2 to reflect this industry-standard aggregate limit. Looking forward to getting started once this is finalized!\n\nBest,\n[Your Name]"
-  },
-  {
-    "category": "RESTRICTIVE_COVENANTS",
-    "risk_level": "HIGH",
-    "riskLevel": "HIGH",
-    "severity": "HIGH",
-    "problematic_fine_print": "Developer agrees not to engage in, advise, or perform similar freelance software services for any competitor of Client worldwide for a period of thirty-six (36) months post-termination.",
-    "fine_print": "Developer agrees not to engage in, advise, or perform similar freelance software services for any competitor of Client worldwide for a period of thirty-six (36) months post-termination.",
-    "problematicFinePrint": "Developer agrees not to engage in, advise, or perform similar freelance software services for any competitor of Client worldwide for a period of thirty-six (36) months post-termination.",
-    "finePrint": "Developer agrees not to engage in, advise, or perform similar freelance software services for any competitor of Client worldwide for a period of thirty-six (36) months post-termination.",
-    "quote": "Developer agrees not to engage in, advise, or perform similar freelance software services for any competitor of Client worldwide for a period of thirty-six (36) months post-termination.",
-    "problematic_clause": "Developer agrees not to engage in, advise, or perform similar freelance software services for any competitor of Client worldwide for a period of thirty-six (36) months post-termination.",
-    "original_clause": "Developer agrees not to engage in, advise, or perform similar freelance software services for any competitor of Client worldwide for a period of thirty-six (36) months post-termination.",
-    "clause": "Developer agrees not to engage in, advise, or perform similar freelance software services for any competitor of Client worldwide for a period of thirty-six (36) months post-termination.",
-    "clause_text": "Developer agrees not to engage in, advise, or perform similar freelance software services for any competitor of Client worldwide for a period of thirty-six (36) months post-termination.",
-    "why_it_hurts": "Under Section 27 of the Indian Contract Act 1872, post-termination non-competes are void as unlawful restraint of trade. Clients use these intimidation clauses to prevent you from working freely.",
-    "whyItHurts": "Under Section 27 of the Indian Contract Act 1872, post-termination non-competes are void as unlawful restraint of trade. Clients use these intimidation clauses to prevent you from working freely.",
-    "why_it_hurts_you": "Under Section 27 of the Indian Contract Act 1872, post-termination non-competes are void as unlawful restraint of trade. Clients use these intimidation clauses to prevent you from working freely.",
-    "explanation": "Under Section 27 of the Indian Contract Act 1872, post-termination non-competes are void as unlawful restraint of trade. Clients use these intimidation clauses to prevent you from working freely.",
-    "reason": "Under Section 27 of the Indian Contract Act 1872, post-termination non-competes are void as unlawful restraint of trade. Clients use these intimidation clauses to prevent you from working freely.",
-    "impact": "Under Section 27 of the Indian Contract Act 1872, post-termination non-competes are void as unlawful restraint of trade. Clients use these intimidation clauses to prevent you from working freely.",
-    "safe_counter_clause": "Developer shall maintain strict confidentiality regarding Client's proprietary business methods. Nothing herein shall restrict Developer from performing freelance development services for other clients in the software industry.",
-    "safeCounterClause": "Developer shall maintain strict confidentiality regarding Client's proprietary business methods. Nothing herein shall restrict Developer from performing freelance development services for other clients in the software industry.",
-    "counter_clause": "Developer shall maintain strict confidentiality regarding Client's proprietary business methods. Nothing herein shall restrict Developer from performing freelance development services for other clients in the software industry.",
-    "counterClause": "Developer shall maintain strict confidentiality regarding Client's proprietary business methods. Nothing herein shall restrict Developer from performing freelance development services for other clients in the software industry.",
-    "safe_clause": "Developer shall maintain strict confidentiality regarding Client's proprietary business methods. Nothing herein shall restrict Developer from performing freelance development services for other clients in the software industry.",
-    "suggested_clause": "Developer shall maintain strict confidentiality regarding Client's proprietary business methods. Nothing herein shall restrict Developer from performing freelance development services for other clients in the software industry.",
-    "polite_client_negotiation_email": "Hi [Client Name],\n\nRegarding Section 3 (Non-Compete): As an independent software professional serving multiple industry clients, broad post-termination non-competes restrict my lawful trade. I have updated this section to reinforce strict Confidentiality and IP protection for your proprietary assets while removing the general non-compete. Let me know if that works for you!\n\nBest,\n[Your Name]",
-    "politeClientNegotiationEmail": "Hi [Client Name],\n\nRegarding Section 3 (Non-Compete): As an independent software professional serving multiple industry clients, broad post-termination non-competes restrict my lawful trade. I have updated this section to reinforce strict Confidentiality and IP protection for your proprietary assets while removing the general non-compete. Let me know if that works for you!\n\nBest,\n[Your Name]",
-    "negotiation_email": "Hi [Client Name],\n\nRegarding Section 3 (Non-Compete): As an independent software professional serving multiple industry clients, broad post-termination non-competes restrict my lawful trade. I have updated this section to reinforce strict Confidentiality and IP protection for your proprietary assets while removing the general non-compete. Let me know if that works for you!\n\nBest,\n[Your Name]",
-    "client_negotiation_email": "Hi [Client Name],\n\nRegarding Section 3 (Non-Compete): As an independent software professional serving multiple industry clients, broad post-termination non-competes restrict my lawful trade. I have updated this section to reinforce strict Confidentiality and IP protection for your proprietary assets while removing the general non-compete. Let me know if that works for you!\n\nBest,\n[Your Name]",
-    "email": "Hi [Client Name],\n\nRegarding Section 3 (Non-Compete): As an independent software professional serving multiple industry clients, broad post-termination non-competes restrict my lawful trade. I have updated this section to reinforce strict Confidentiality and IP protection for your proprietary assets while removing the general non-compete. Let me know if that works for you!\n\nBest,\n[Your Name]",
-    "email_template": "Hi [Client Name],\n\nRegarding Section 3 (Non-Compete): As an independent software professional serving multiple industry clients, broad post-termination non-competes restrict my lawful trade. I have updated this section to reinforce strict Confidentiality and IP protection for your proprietary assets while removing the general non-compete. Let me know if that works for you!\n\nBest,\n[Your Name]"
-  },
-  {
-    "category": "IP_ASSIGNMENT",
-    "risk_level": "MEDIUM",
-    "riskLevel": "MEDIUM",
-    "severity": "MEDIUM",
-    "problematic_fine_print": "All work product, custom code, documentation, and intellectual property rights shall transfer to Client immediately upon creation, irrespective of invoice payment status.",
-    "fine_print": "All work product, custom code, documentation, and intellectual property rights shall transfer to Client immediately upon creation, irrespective of invoice payment status.",
-    "problematicFinePrint": "All work product, custom code, documentation, and intellectual property rights shall transfer to Client immediately upon creation, irrespective of invoice payment status.",
-    "finePrint": "All work product, custom code, documentation, and intellectual property rights shall transfer to Client immediately upon creation, irrespective of invoice payment status.",
-    "quote": "All work product, custom code, documentation, and intellectual property rights shall transfer to Client immediately upon creation, irrespective of invoice payment status.",
-    "problematic_clause": "All work product, custom code, documentation, and intellectual property rights shall transfer to Client immediately upon creation, irrespective of invoice payment status.",
-    "original_clause": "All work product, custom code, documentation, and intellectual property rights shall transfer to Client immediately upon creation, irrespective of invoice payment status.",
-    "clause": "All work product, custom code, documentation, and intellectual property rights shall transfer to Client immediately upon creation, irrespective of invoice payment status.",
-    "clause_text": "All work product, custom code, documentation, and intellectual property rights shall transfer to Client immediately upon creation, irrespective of invoice payment status.",
-    "why_it_hurts": "If IP transfers before you receive payment, the client owns your code even if they never pay your final invoice, leaving you with zero leverage.",
-    "whyItHurts": "If IP transfers before you receive payment, the client owns your code even if they never pay your final invoice, leaving you with zero leverage.",
-    "why_it_hurts_you": "If IP transfers before you receive payment, the client owns your code even if they never pay your final invoice, leaving you with zero leverage.",
-    "explanation": "If IP transfers before you receive payment, the client owns your code even if they never pay your final invoice, leaving you with zero leverage.",
-    "reason": "If IP transfers before you receive payment, the client owns your code even if they never pay your final invoice, leaving you with zero leverage.",
-    "impact": "If IP transfers before you receive payment, the client owns your code even if they never pay your final invoice, leaving you with zero leverage.",
-    "safe_counter_clause": "All intellectual property rights, copyright, and title in the final deliverables shall transfer to Client strictly upon receipt of full and final payment of all outstanding invoices.",
-    "safeCounterClause": "All intellectual property rights, copyright, and title in the final deliverables shall transfer to Client strictly upon receipt of full and final payment of all outstanding invoices.",
-    "counter_clause": "All intellectual property rights, copyright, and title in the final deliverables shall transfer to Client strictly upon receipt of full and final payment of all outstanding invoices.",
-    "counterClause": "All intellectual property rights, copyright, and title in the final deliverables shall transfer to Client strictly upon receipt of full and final payment of all outstanding invoices.",
-    "safe_clause": "All intellectual property rights, copyright, and title in the final deliverables shall transfer to Client strictly upon receipt of full and final payment of all outstanding invoices.",
-    "suggested_clause": "All intellectual property rights, copyright, and title in the final deliverables shall transfer to Client strictly upon receipt of full and final payment of all outstanding invoices.",
-    "polite_client_negotiation_email": "Hi [Client Name],\n\nRegarding Section 4 (IP Assignment): Industry standard practice is for IP rights to transfer upon receipt of 100% of agreed milestone fees. I have updated the wording so that assignment is triggered upon final payment clearance. Thank you for understanding!\n\nBest,\n[Your Name]",
-    "politeClientNegotiationEmail": "Hi [Client Name],\n\nRegarding Section 4 (IP Assignment): Industry standard practice is for IP rights to transfer upon receipt of 100% of agreed milestone fees. I have updated the wording so that assignment is triggered upon final payment clearance. Thank you for understanding!\n\nBest,\n[Your Name]",
-    "negotiation_email": "Hi [Client Name],\n\nRegarding Section 4 (IP Assignment): Industry standard practice is for IP rights to transfer upon receipt of 100% of agreed milestone fees. I have updated the wording so that assignment is triggered upon final payment clearance. Thank you for understanding!\n\nBest,\n[Your Name]",
-    "client_negotiation_email": "Hi [Client Name],\n\nRegarding Section 4 (IP Assignment): Industry standard practice is for IP rights to transfer upon receipt of 100% of agreed milestone fees. I have updated the wording so that assignment is triggered upon final payment clearance. Thank you for understanding!\n\nBest,\n[Your Name]",
-    "email": "Hi [Client Name],\n\nRegarding Section 4 (IP Assignment): Industry standard practice is for IP rights to transfer upon receipt of 100% of agreed milestone fees. I have updated the wording so that assignment is triggered upon final payment clearance. Thank you for understanding!\n\nBest,\n[Your Name]",
-    "email_template": "Hi [Client Name],\n\nRegarding Section 4 (IP Assignment): Industry standard practice is for IP rights to transfer upon receipt of 100% of agreed milestone fees. I have updated the wording so that assignment is triggered upon final payment clearance. Thank you for understanding!\n\nBest,\n[Your Name]"
-  }
-];
-
-    const safeResult = {
-      overall_risk_score: "HIGH",
-      risk_level: "HIGH",
-      riskLevel: "HIGH",
-      jurisdiction: (jurisdiction || 'INDIA').replace(/ LAW/i, ''),
-      contract_title: contractTitle || "India Freelance Dev Contract",
-      contractTitle: contractTitle || "India Freelance Dev Contract",
-      summary: "The agreement imposes severe financial, IP, and restrictive covenant risks on the freelancer, including indefinite payment waivers, immediate IP transfer, unlimited indemnity, and a 36-month non-compete, making the contract highly unfavorable.",
-      flagged_clauses: richClauses,
-      clauses: richClauses,
-      flaggedCount: richClauses.length,
-      vulnerabilitiesCount: richClauses.length
-    };
-
-    function normalizeAudit(data) {
-      if (!data) return null;
-      const list = data.flagged_clauses || data.clauses || [];
-      const cleanList = list.map(c => {
-        const fine = c.problematic_fine_print || c.fine_print || c.finePrint || c.quote || c.problematicFinePrint || c.original_clause || c.original_text || c.clause || c.text || c.snippet || '';
-        const hurts = c.why_it_hurts || c.whyItHurts || c.why_it_hurts_you || c.explanation || c.reason || c.impact || '';
-        const counter = c.safe_counter_clause || c.counter_clause || c.safeCounterClause || c.counterClause || c.safe_clause || '';
-        const email = c.polite_client_negotiation_email || c.negotiation_email || c.email || c.politeClientNegotiationEmail || c.client_negotiation_email || c.email_template || c.email_draft || '';
-
-        return {
-          ...c,
-          category: (c.category || 'RISK_CLAUSE').replace(/\s+/g, '_').toUpperCase(),
-          risk_level: String(c.risk_level || c.riskLevel || 'HIGH').replace(/\s*RISK/i, ''),
-          problematic_fine_print: fine,
-          fine_print: fine,
-          problematicFinePrint: fine,
-          finePrint: fine,
-          quote: fine,
-          clause_quote: fine,
-          original_clause: fine,
-          original_text: fine,
-          clause: fine,
-          clause_text: fine,
-          text: fine,
-          snippet: fine,
-          why_it_hurts: hurts,
-          whyItHurts: hurts,
-          why_it_hurts_you: hurts,
-          explanation: hurts,
-          reason: hurts,
-          impact: hurts,
-          safe_counter_clause: counter,
-          safeCounterClause: counter,
-          counter_clause: counter,
-          counterClause: counter,
-          safe_clause: counter,
-          polite_client_negotiation_email: email,
-          politeClientNegotiationEmail: email,
-          negotiation_email: email,
-          negotiationEmail: email,
-          client_negotiation_email: email,
-          email: email,
-          email_template: email,
-          email_draft: email
-        };
-      });
-
-      return {
-        ...data,
-        overall_risk_score: String(data.overall_risk_score || data.risk_level || 'HIGH').replace(/\s*RISK/i, ''),
-        jurisdiction: String(data.jurisdiction || jurisdiction || 'INDIA').replace(/\s*LAW/i, ''),
-        contract_title: data.contract_title || data.contractTitle || contractTitle || 'Contract Audit',
-        summary: data.summary || 'Contract risk audit complete.',
-        flagged_clauses: cleanList,
-        clauses: cleanList
-      };
-    }
-
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3500);
-
       const res = await fetch("/api/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
         body: JSON.stringify({ contractTitle, contractText, jurisdiction })
       });
-      clearTimeout(timer);
 
-      if (res.ok) {
-        const json = await res.json();
-        const raw = json.data || json;
-        if (raw && (raw.clauses || raw.summary)) {
-          auditResult = normalizeAudit(raw);
-        } else {
-          auditResult = normalizeAudit(safeResult);
-        }
+      const json = await res.json();
+
+      if (res.ok && json.success && (json.flagged_clauses || json.clauses || (json.data && json.data.flagged_clauses))) {
+        auditResult = json.data || json;
+        errorMessage = '';
+        setTimeout(() => {
+          const el = document.getElementById('audit-results');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
       } else {
-        auditResult = normalizeAudit(safeResult);
+        auditResult = null;
+        errorMessage = json.error || 'Not goes to AI: AI processing failed or rejected.';
       }
     } catch (err) {
-      console.warn("Client fallback active:", err);
-      auditResult = normalizeAudit(safeResult);
+      auditResult = null;
+      errorMessage = 'Not goes to AI: Network connection error (' + err.message + ')';
     } finally {
       loading = false;
-      setTimeout(() => {
-        const el = document.getElementById('audit-results');
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+  });
       }, 100);
     }
   }
@@ -653,6 +397,12 @@
         </div>
       {:else}
         <button class="btn-nav-quick" on:click={() => navigateTo('audit')}>Try Free</button>
+
+            {#if errorMessage}
+              <div class="ai-not-goes-error" style="margin-top: 16px; border: 1.5px solid #ef4444; background: rgba(239, 68, 68, 0.12); color: #fca5a5; padding: 14px; border-radius: 10px; font-weight: 700; text-align: center; font-size: 0.95rem; line-height: 1.4;">
+                ⚠️ {errorMessage}
+              </div>
+            {/if}
       {/if}
       <button class="hamburger-btn" on:click={() => { mobileMenuOpen = !mobileMenuOpen; }} aria-label="Menu">
         {mobileMenuOpen ? '✕' : '☰'}
