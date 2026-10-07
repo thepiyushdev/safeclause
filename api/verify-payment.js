@@ -5,7 +5,7 @@ const SB_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "")
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const RECEIVER_ID = "8796021247@fam";
 const RECEIVER_DIGITS = "8796021247";
-const PACKS = { 1: { amount: 49, credits: 1 }, 3: { amount: 129, credits: 3 } };
+const PACKS = { 1: { amount: 49, credits: 1 }, 3: { amount: 129, credits: 3 }, 8: { amount: 299, credits: 8 } };
 const MAX_B64 = 3000000;
 const MODELS = Array.from(
   new Set([process.env.GEMINI_MODEL, "gemini-3.1-flash-lite", "gemini-3-flash-preview", "gemini-flash-latest", "gemini-2.5-flash"].filter(Boolean))
