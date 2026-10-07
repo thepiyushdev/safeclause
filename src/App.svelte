@@ -8,8 +8,20 @@
 
   const UPI_ID = "8796021247@fam";
   const MAX_CHARS = 10000;
-  // Set this to your REAL number of audits run. While it is 0, a neutral line is shown instead.
+  // Set to your REAL number of audits run. While it is 0, no scan counter is shown anywhere.
   const SCANNED_COUNT = 0;
+
+  /* ---------- router ---------- */
+  const ROUTES = ["home", "audit", "radar", "vault", "pricing", "account"];
+  const NAV = [
+    { id: "home", label: "Home" },
+    { id: "audit", label: "Audit Scanner" },
+    { id: "radar", label: "Risk Radar" },
+    { id: "vault", label: "Clause Vault" },
+    { id: "pricing", label: "Pricing" },
+  ];
+  let currentRoute = "home";
+  let menuOpen = false;
 
   const PACKS = [
     { id: 1, credits: 1, price: 49, icon: "⚡", name: "Single Audit Pass", popular: false,
@@ -50,19 +62,30 @@
     ].join("\n"),
   };
 
+  const VAULT_CATS = ["All", "Payment", "IP", "Liability", "Scope", "Termination"];
   const VAULT = [
-    { title: "IP stays yours until you are paid", text: "Ownership of all deliverables remains with the Contractor and transfers to the Client only upon receipt of full payment of all fees due under this Agreement. Until then, the Client receives a limited, revocable licence to review the work." },
-    { title: "Net-14 payment + late fee", text: "Invoices are payable within fourteen (14) days of the invoice date. Amounts unpaid after the due date accrue a late fee of 1.5% per month, or the maximum permitted by law if lower. The Contractor may suspend work while any invoice is overdue." },
-    { title: "2-revision cap", text: "The fee includes up to two (2) rounds of revisions per deliverable within the agreed scope. Additional revisions or changes in scope will be quoted and billed at the Contractor standard rate of [RATE] per hour." },
-    { title: "Liability capped at fees paid", text: "The Contractor total aggregate liability under this Agreement shall not exceed the total fees actually paid to the Contractor under this Agreement. Neither party shall be liable for indirect, incidental or consequential damages." },
-    { title: "Fair termination + kill fee", text: "Either party may terminate this Agreement with fourteen (14) days written notice. On termination the Client shall pay for all work performed up to the termination date, plus a kill fee of 25% of the remaining unpaid fees." },
-    { title: "Upfront deposit", text: "A non-refundable deposit of 30% of the total fee is due before work begins. Work will commence upon receipt of the deposit." },
+    { id: "v1", cat: "Payment", title: "Net-14 payment + late fee", text: "Invoices are payable within fourteen (14) days of the invoice date. Amounts unpaid after the due date accrue a late fee of 1.5% per month, or the maximum permitted by law if lower. The Contractor may suspend work while any invoice is overdue." },
+    { id: "v2", cat: "Payment", title: "Upfront deposit", text: "A non-refundable deposit of 30% of the total fee is due before work begins. Work will commence upon receipt of the deposit." },
+    { id: "v3", cat: "Payment", title: "Final files released on payment", text: "Final deliverables and source files will be released to the Client upon receipt of full payment of all invoices due under this Agreement." },
+    { id: "v4", cat: "IP", title: "IP stays yours until you are paid", text: "Ownership of all deliverables remains with the Contractor and transfers to the Client only upon receipt of full payment of all fees due under this Agreement. Until then, the Client receives a limited, revocable licence to review the work." },
+    { id: "v5", cat: "IP", title: "Portfolio rights", text: "The Contractor retains the right to display non-confidential portions of the completed work in the Contractor portfolio and promotional materials, unless the parties agree otherwise in writing." },
+    { id: "v6", cat: "Liability", title: "Liability capped at fees paid", text: "The Contractor total aggregate liability under this Agreement shall not exceed the total fees actually paid to the Contractor under this Agreement. Neither party shall be liable for indirect, incidental or consequential damages." },
+    { id: "v7", cat: "Liability", title: "Limited warranty", text: "The Contractor will correct defects in the deliverables reported in writing within thirty (30) days of delivery. Except as stated in this clause, the deliverables are provided as is, without other warranties." },
+    { id: "v8", cat: "Scope", title: "2-revision cap", text: "The fee includes up to two (2) rounds of revisions per deliverable within the agreed scope. Additional revisions or changes in scope will be quoted and billed at the Contractor standard rate of [RATE] per hour." },
+    { id: "v9", cat: "Scope", title: "Written change requests", text: "Any work outside the agreed scope requires a written change request. The Contractor will provide a quote for the additional work, and work begins only after the Client approves it in writing." },
+    { id: "v10", cat: "Termination", title: "Fair termination + kill fee", text: "Either party may terminate this Agreement with fourteen (14) days written notice. On termination the Client shall pay for all work performed up to the termination date, plus a kill fee of 25% of the remaining unpaid fees." },
+  ];
+
+  const DEMOS = [
+    { label: "Payment", bad: "The Contractor will be paid within 90 days after project completion, and the Client may withhold payment if it is not fully satisfied.", good: "Invoices are due within fourteen (14) days of the invoice date. Unpaid amounts accrue a late fee of 1.5% per month.", threat: "Net-90 plus a vague satisfaction test means you finance the client for months and they can walk away without paying.", win: "A clear Net-14 deadline with a late fee puts the cashflow risk back on the client." },
+    { label: "IP", bad: "All work, drafts and materials belong to the Client from the moment of creation, whether or not payment has been made.", good: "Ownership of deliverables transfers to the Client only upon receipt of full payment.", threat: "The client can use your work and never pay, and you have little leverage to get paid.", win: "You keep ownership until the invoice is paid, which gives you real leverage." },
+    { label: "Liability", bad: "The Contractor is liable for all direct, indirect and consequential losses of the Client, without any limit.", good: "The Contractor total liability shall not exceed the fees paid under this Agreement.", threat: "One bug could cost you far more than the project was worth.", win: "Your worst-case loss is capped at what you were actually paid." },
   ];
 
   const PAINS = [
     { icon: "🧊", title: "Net-90 cashflow freeze", text: "A ₹50,000 project on Net-90 means you fund three months of rent, tools and time before you see a rupee." },
-    { icon: "🔓", title: "IP transfer without payment", text: "If the contract says everything belongs to the client from creation, they can use your work and you have little leverage to get paid." },
-    { icon: "💥", title: "Uncapped bug liability", text: "An unlimited liability clause lets a client claim losses far above your fee when something breaks after launch." },
+    { icon: "🔓", title: "IP grab before payment", text: "If the contract says everything belongs to the client from creation, they can use your work and you have little leverage to get paid." },
+    { icon: "💥", title: "Uncapped liability", text: "An unlimited liability clause lets a client claim losses far above your fee when something breaks after launch." },
   ];
 
   const COMPARE = [
@@ -85,12 +108,21 @@
   ];
 
   const TERMS = [14, 30, 45, 60, 90, 120];
+  const STEPS = [
+    { n: "1", t: "Tap to pay", d: "Choose a pack and tap the UPI button. GPay, PhonePe or Paytm opens with the amount filled in." },
+    { n: "2", t: "Screenshot the success screen", d: "Capture the full payment-success screen with the amount, receiver and transaction ID visible." },
+    { n: "3", t: "Upload and verify", d: "Upload it in the payment window. AI checks the details and adds your credits." },
+  ];
+  const BADGES = [
+    { i: "🔒", t: "Contract text not saved", d: "Your contract is not stored in our database." },
+    { i: "✅", t: "Every payment verified", d: "Amount, receiver, status and transaction ID are checked." },
+    { i: "🧾", t: "Pay per contract", d: "No subscription. Buy credits only when you need them." },
+    { i: "📲", t: "Direct UPI", d: "Pay straight from GPay, PhonePe or Paytm." },
+  ];
 
-  let tab = "audit";
   let session = null;
   let credits = 0;
   let jur = "india";
-  let textareaEl;
 
   let contractText = "";
   let loading = false;
@@ -102,6 +134,12 @@
   let copied = "";
   let pdfBusy = false;
   let pdfInput;
+
+  let demoIdx = 0;
+  let demoSafe = false;
+
+  let vaultQuery = "";
+  let vaultCat = "All";
 
   let calcValue = 50000;
   let calcTerms = 90;
@@ -131,6 +169,8 @@
 
   let sub = null;
 
+  const STAT_DELAY = money(computeRisk(50000, 90, "capped", "payment", "limited", 12).delayCost, "india");
+
   $: user = session ? session.user : null;
   $: initial = user && user.email ? user.email.charAt(0).toUpperCase() : "";
   $: if (user) { refreshCredits(user.id); } else { credits = 0; }
@@ -140,8 +180,13 @@
   $: highCount = flagged.filter(function (c) { return c.risk_level === "HIGH"; }).length;
   $: allUnlocked = flagged.length > 0 && flagged.every(function (c, i) { return !!unlockedData[i]; });
   $: calcResult = computeRisk(calcValue, calcTerms, calcLiab, calcIp, calcRev, calcRate);
+  $: demo = DEMOS[demoIdx];
+  $: vaultFiltered = filterVault(VAULT, vaultQuery, vaultCat);
 
   onMount(async function () {
+    const r0 = routeFromHash();
+    if (r0) currentRoute = r0;
+    window.addEventListener("hashchange", onHash);
     if (!sb) return;
     const res0 = await sb.auth.getSession();
     session = res0.data ? res0.data.session : null;
@@ -151,7 +196,35 @@
     });
     sub = res.data.subscription;
   });
-  onDestroy(function () { if (sub) sub.unsubscribe(); });
+  onDestroy(function () {
+    if (typeof window !== "undefined") window.removeEventListener("hashchange", onHash);
+    if (sub) sub.unsubscribe();
+  });
+
+  /* ---------- router functions ---------- */
+  function routeFromHash() {
+    const m = String(window.location.hash || "").match(/^#\/([a-z]+)$/);
+    return m && ROUTES.indexOf(m[1]) !== -1 ? m[1] : null;
+  }
+
+  function onHash() {
+    const r = routeFromHash();
+    if (r) {
+      currentRoute = r;
+      menuOpen = false;
+      window.scrollTo(0, 0);
+    }
+  }
+
+  function go(r) {
+    if (ROUTES.indexOf(r) === -1) return;
+    currentRoute = r;
+    menuOpen = false;
+    try {
+      if (window.location.hash !== "#/" + r) window.location.hash = "#/" + r;
+    } catch (e) {}
+    window.scrollTo(0, 0);
+  }
 
   /* ---------- helpers ---------- */
   async function refreshCredits(uid) {
@@ -207,21 +280,18 @@
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function goTab(t) {
-    tab = t;
-    setTimeout(function () { scrollToId("workspace"); }, 40);
+  function pickDemo(i) {
+    demoIdx = i;
+    demoSafe = false;
   }
 
-  function startAudit() {
-    tab = "audit";
-    scrollToId("workspace");
-    setTimeout(function () { if (textareaEl) textareaEl.focus(); }, 500);
-  }
-
-  function trySample() {
-    loadSample(jur === "india" ? "india" : "us");
-    tab = "audit";
-    scrollToId("workspace");
+  function filterVault(list, q, cat) {
+    const needle = String(q || "").trim().toLowerCase();
+    return list.filter(function (v) {
+      const okCat = cat === "All" || v.cat === cat;
+      const okQ = !needle || (v.title + " " + v.text + " " + v.cat).toLowerCase().indexOf(needle) !== -1;
+      return okCat && okQ;
+    });
   }
 
   /* ---------- risk calculator (illustrative model) ---------- */
@@ -305,7 +375,7 @@
     if (sb) await sb.auth.signOut();
     unlockedData = {};
     unlockError = "";
-    tab = "audit";
+    go("home");
   }
 
   /* ---------- contract input ---------- */
@@ -546,351 +616,420 @@
   <meta name="description" content="Scan client contracts in seconds. Spot hidden liability traps, Net-90 payment delays and IP risks before you sign." />
 </svelte:head>
 
-<div class="app" id="top">
-  <header class="nav glass">
-    <button class="logo" on:click={() => scrollToId("top")}><span>🛡️</span><span>SafeClause</span></button>
-    <div class="nav-right">
-      <button class="chip" on:click={() => goTab("pricing")} title={credits + " credits"}>⚡ {shortCredits(credits)}</button>
-      <button class="btn sm accent" on:click={() => goTab("pricing")}>Store</button>
-      {#if user}
-        <button class="avatar" on:click={() => goTab("account")} title={user.email}>{initial}</button>
-      {:else}
-        <button class="btn sm" on:click={() => openAuth("login")}>Login</button>
-      {/if}
-    </div>
-  </header>
-
-  <!-- HERO -->
-  <section class="hero wrap">
-    <div class="pill">
-      {#if SCANNED_COUNT > 0}
-        ✅ Over {SCANNED_COUNT.toLocaleString("en-IN")}+ contracts scanned
-      {:else}
-        🇮🇳 Built for freelancers in India &amp; the US
-      {/if}
-    </div>
-    <h1>Never sign a contract that <span class="grad">can bankrupt you.</span></h1>
-    <p class="sub">Scan client contracts in seconds. Spot hidden liability traps, Net-90 payment delays, and IP theft before you sign.</p>
-    <div class="cta-row">
-      <button class="btn primary big" on:click={startAudit}>Audit Your Contract Now (Free Preview)</button>
-      <button class="btn big" on:click={trySample}>Try Sample Agreement</button>
-    </div>
-    <div class="trust">
-      <span>⚡ Results in seconds</span><span>🔒 Contract text not saved</span><span>📄 PDF safety report</span>
-    </div>
-  </section>
-
-  <!-- WORKSPACE -->
-  <section id="workspace" class="wrap narrow">
-    <div class="tabs" role="tablist">
-      <button class:active={tab === "audit"} on:click={() => (tab = "audit")}><span class="long">Document Audit</span><span class="short">Audit</span></button>
-      <button class:active={tab === "radar"} on:click={() => (tab = "radar")}><span class="long">Risk Radar</span><span class="short">Radar</span></button>
-      <button class:active={tab === "pricing"} on:click={() => (tab = "pricing")}><span class="long">Pricing &amp; Store</span><span class="short">Pricing</span></button>
-      <button class:active={tab === "account"} on:click={() => (tab = "account")}><span class="long">Account Profile</span><span class="short">Account</span></button>
-    </div>
-
-    {#if tab === "audit"}
-      <div class="seg" role="group" aria-label="Jurisdiction">
-        <button class:on={jur === "india"} on:click={() => (jur = "india")}>🇮🇳 India <small>(Act 1872 / MSMED)</small></button>
-        <button class:on={jur === "global"} on:click={() => (jur = "global")}>🌐 US / UK / Remote Global</button>
-      </div>
-
-      <section class="glass card">
-        <div class="row">
-          <button class="btn sm" on:click={() => loadSample("india")}>Sample India Dev Contract</button>
-          <button class="btn sm" on:click={() => loadSample("us")}>Sample US Remote Contract</button>
-          <label class="btn sm file">
-            {pdfBusy ? "Reading PDF..." : "📄 Upload PDF"}
-            <input type="file" accept="application/pdf" on:change={onPdf} bind:this={pdfInput} disabled={pdfBusy} hidden />
-          </label>
-        </div>
-        <textarea bind:this={textareaEl} bind:value={contractText} rows="11" maxlength={MAX_CHARS} placeholder="Paste your client contract here, or upload a PDF..."></textarea>
-        <div class="count">{contractText.length} / {MAX_CHARS} characters</div>
-        <button class="btn primary block big" class:loading={loading} on:click={runAudit} disabled={loading}>
-          {loading ? "Scanning every clause..." : "Run Instant AI Risk Audit ⚡"}
-        </button>
-        {#if error}
-          <div class="error" role="alert">⚠️ {error}</div>
+<div class="app">
+  <!-- NAVBAR (persists on every view) -->
+  <div class="navwrap">
+    <header class="nav">
+      <button class="logo" on:click={() => go("home")}><span>🛡️</span><span>SafeClause</span></button>
+      <nav class="links-d">
+        {#each NAV as n}
+          <button class:active={currentRoute === n.id} on:click={() => go(n.id)}>{n.label}</button>
+        {/each}
+      </nav>
+      <div class="nav-right">
+        <button class="chip" on:click={() => go("pricing")} title={credits + " credits"}>⚡ {shortCredits(credits)}</button>
+        <button class="btn sm accent" on:click={() => openPay(1)}><span class="long">Buy Credits</span><span class="short">Buy</span></button>
+        {#if user}
+          <button class="avatar" on:click={() => go("account")} title={user.email}>{initial}</button>
+        {:else}
+          <button class="btn sm" on:click={() => openAuth("login")}>Login</button>
         {/if}
+        <button class="burger" aria-label="Menu" on:click={() => (menuOpen = !menuOpen)}>{menuOpen ? "✕" : "☰"}</button>
+      </div>
+    </header>
+    {#if menuOpen}
+      <nav class="menu">
+        {#each NAV as n}
+          <button class:active={currentRoute === n.id} on:click={() => go(n.id)}>{n.label}</button>
+        {/each}
+        {#if user}<button class:active={currentRoute === "account"} on:click={() => go("account")}>Account</button>{/if}
+      </nav>
+    {/if}
+  </div>
+
+  <main class="view">
+    {#if currentRoute === "home"}
+      <!-- ============ VIEW: HOME ============ -->
+      <section class="hero wrap">
+        <div class="pill">
+          {#if SCANNED_COUNT > 0}
+            ✅ Over {SCANNED_COUNT.toLocaleString("en-IN")}+ contracts scanned
+          {:else}
+            🇮🇳 Built for freelancers in India &amp; the US
+          {/if}
+        </div>
+        <h1>Never sign a contract that <span class="grad">can bankrupt you.</span></h1>
+        <p class="sub">Scan client contracts in seconds. Spot hidden liability traps, Net-90 payment delays, and IP theft before you sign.</p>
+        <div class="cta-row">
+          <button class="btn primary big" on:click={() => go("audit")}>Launch Audit Scanner ⚡</button>
+          <button class="btn big" on:click={() => go("radar")}>Test Risk Calculator 💸</button>
+        </div>
+        <div class="trust">
+          <span>⚡ Results in seconds</span><span>🔒 Contract text not saved</span><span>📄 PDF safety report</span>
+        </div>
       </section>
 
-      {#if result}
-        <section id="results" class="glass card">
-          <div class="row between">
-            <h2>Executive Risk Meter</h2>
-            <span class="badge {riskClass(result.overall_risk_score)}">{result.overall_risk_score} RISK</span>
+      <section class="wrap narrow">
+        <div class="glass demo">
+          <div class="demo-head">
+            <b>See a trap get fixed</b>
+            <span class="muted small">Illustrative example</span>
           </div>
-          <div class="meter"><div class="meter-pin" style="left: {meterPos(result.overall_risk_score)}%"></div></div>
-          <div class="meter-labels"><span>LOW</span><span>MEDIUM</span><span>HIGH</span></div>
-          <p class="pre">{fmt(result.executive_summary)}</p>
-          <p class="muted">{flagged.length} flagged clause{flagged.length === 1 ? "" : "s"} • {highCount} high risk</p>
-          {#if flagged.length > 0}
-            <button class="btn sm" on:click={downloadReport}>📄 {allUnlocked ? "Download Full PDF Report" : "Download PDF Preview Report"}</button>
-            <span class="muted small"> Choose "Save as PDF" in the print window.</span>
+          <div class="chips">
+            {#each DEMOS as d, i}
+              <button class:on={demoIdx === i} on:click={() => pickDemo(i)}>{d.label}</button>
+            {/each}
+          </div>
+          <div class="demo-tag" class:ok={demoSafe}>{demoSafe ? "✅ SafeClause rewrite" : "⚠️ Predatory clause"}</div>
+          <blockquote class:good={demoSafe}>{demoSafe ? demo.good : demo.bad}</blockquote>
+          <p class="muted">{demoSafe ? demo.win : demo.threat}</p>
+          <div class="row">
+            <button class="btn primary" on:click={() => (demoSafe = !demoSafe)}>{demoSafe ? "↺ Show original" : "Rewrite with SafeClause ✨"}</button>
+            <button class="btn" on:click={() => go("audit")}>Try it on my contract</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="wrap sec">
+        <h2 class="sec-title">Why freelancers lose money</h2>
+        <p class="sec-sub">Common contract traps, shown as illustrative examples.</p>
+        <div class="grid3">
+          {#each PAINS as p}
+            <div class="glass card pain">
+              <div class="pain-ic">{p.icon}</div>
+              <h3 class="pain-t">{p.title}</h3>
+              <p class="muted">{p.text}</p>
+            </div>
+          {/each}
+        </div>
+      </section>
+
+      <section class="wrap sec">
+        <h2 class="sec-title">Before vs after SafeClause</h2>
+        <div class="glass tbl-wrap">
+          <table>
+            <thead><tr><th></th><th>Signing blindly</th><th>With SafeClause</th></tr></thead>
+            <tbody>
+              {#each COMPARE as r}
+                <tr><td>{r[0]}</td><td class="bad">{r[1]}</td><td class="good">{r[2]}</td></tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="wrap sec">
+        <h2 class="sec-title">SafeClause by the numbers</h2>
+        <p class="sec-sub">What every audit covers, plus one worked example.</p>
+        <div class="stats">
+          {#if SCANNED_COUNT > 0}
+            <div class="glass stat"><b>{SCANNED_COUNT.toLocaleString("en-IN")}+</b><span>contracts scanned</span></div>
+          {/if}
+          <div class="glass stat"><b>3-5</b><span>riskiest clauses flagged per audit</span></div>
+          <div class="glass stat"><b>10,000</b><span>characters analysed per contract</span></div>
+          <div class="glass stat"><b>2</b><span>jurisdiction modes: India and Global</span></div>
+          <div class="glass stat"><b>{STAT_DELAY}</b><span>cost of waiting 90 days on a ₹50,000 invoice at 12% a year (illustrative)</span></div>
+        </div>
+      </section>
+
+      <section class="wrap sec narrow">
+        <h2 class="sec-title">Frequently asked questions</h2>
+        {#each FAQS as f}
+          <details class="glass faq">
+            <summary>{f.q}</summary>
+            <p>{f.a}</p>
+          </details>
+        {/each}
+      </section>
+
+      <section class="wrap sec">
+        <div class="final">
+          <h2>Ready to protect your next freelance invoice?</h2>
+          <p>Paste the contract, see the risks, and walk into the negotiation with the right clauses ready.</p>
+          <button class="btn primary big" on:click={() => go("audit")}>Launch Audit Scanner ⚡</button>
+        </div>
+      </section>
+
+    {:else if currentRoute === "audit"}
+      <!-- ============ VIEW: AUDIT ============ -->
+      <div class="wrap narrow">
+        <div class="vhead"><h1>Audit Scanner</h1><p class="muted">Paste a contract and get a risk-rated breakdown in seconds.</p></div>
+
+        <div class="seg" role="group" aria-label="Jurisdiction">
+          <button class:on={jur === "india"} on:click={() => (jur = "india")}>🇮🇳 India <small>(Act 1872 / MSMED)</small></button>
+          <button class:on={jur === "global"} on:click={() => (jur = "global")}>🌐 US / UK / Remote Global</button>
+        </div>
+
+        <section class="glass card">
+          <div class="row">
+            <button class="btn sm" on:click={() => loadSample("india")}>Sample India</button>
+            <button class="btn sm" on:click={() => loadSample("us")}>Sample US</button>
+            <label class="btn sm file">
+              {pdfBusy ? "Reading PDF..." : "📄 Upload PDF"}
+              <input type="file" accept="application/pdf" on:change={onPdf} bind:this={pdfInput} disabled={pdfBusy} hidden />
+            </label>
+          </div>
+          <textarea bind:value={contractText} rows="11" maxlength={MAX_CHARS} placeholder="Paste your client contract here, or upload a PDF..."></textarea>
+          <div class="count">{contractText.length} / {MAX_CHARS} characters</div>
+          <button class="btn primary block big" class:loading={loading} on:click={runAudit} disabled={loading}>
+            {loading ? "Scanning every clause..." : "Run Instant AI Risk Audit ⚡"}
+          </button>
+          {#if error}
+            <div class="error" role="alert">⚠️ {error}</div>
           {/if}
         </section>
 
-        {#each flagged as c, i}
-          <article class="glass card">
+        {#if result}
+          <section id="results" class="glass card">
             <div class="row between">
-              <span class="cat">{c.category}</span>
-              <span class="badge {riskClass(c.risk_level)}">{c.risk_level} RISK</span>
+              <h2>Executive Risk Meter</h2>
+              <span class="badge {riskClass(result.overall_risk_score)}">{result.overall_risk_score} RISK</span>
             </div>
+            <div class="meter"><div class="meter-pin" style="left: {meterPos(result.overall_risk_score)}%"></div></div>
+            <div class="meter-labels"><span>LOW</span><span>MEDIUM</span><span>HIGH</span></div>
+            <p class="pre">{fmt(result.executive_summary)}</p>
+            <p class="muted">{flagged.length} flagged clause{flagged.length === 1 ? "" : "s"} • {highCount} high risk</p>
+            {#if flagged.length > 0}
+              <button class="btn sm" on:click={downloadReport}>📄 {allUnlocked ? "Download Full PDF Report" : "Download PDF Preview Report"}</button>
+              <span class="muted small"> Choose "Save as PDF" in the print window.</span>
+            {/if}
+          </section>
 
-            <h3>Problematic Fine Print</h3>
-            <blockquote>{fmt(c.problematic_fine_print)}</blockquote>
+          {#each flagged as c, i}
+            <article class="glass card">
+              <div class="row between">
+                <span class="cat">{c.category}</span>
+                <span class="badge {riskClass(c.risk_level)}">{c.risk_level} RISK</span>
+              </div>
 
-            <h3>Why It Hurts You</h3>
-            <p class="pre">{fmt(c.why_it_hurts)}</p>
+              <h3>Problematic Fine Print</h3>
+              <blockquote>{fmt(c.problematic_fine_print)}</blockquote>
 
-            <div class="locked-wrap">
-              {#if unlockedData[i]}
-                <div class="premium">
-                  <h3>Safe Counter-Clause</h3>
-                  <div class="box pre">{fmt(unlockedData[i].safe_counter_clause)}</div>
-                  <button class="btn sm" on:click={() => copyText(unlockedData[i].safe_counter_clause, "c" + i)}>
-                    {copied === "c" + i ? "Copied ✓" : "Copy Clause"}
-                  </button>
-                  <h3>Polite Client Negotiation Email</h3>
-                  <div class="box pre">{fmt(unlockedData[i].polite_client_negotiation_email)}</div>
-                  <button class="btn sm" on:click={() => copyText(unlockedData[i].polite_client_negotiation_email, "e" + i)}>
-                    {copied === "e" + i ? "Copied ✓" : "Copy Email"}
-                  </button>
-                </div>
-              {:else}
-                <div class="premium blurred" aria-hidden="true">
-                  <h3>Safe Counter-Clause</h3>
-                  <div class="box pre">{PLACEHOLDER}</div>
-                  <h3>Polite Client Negotiation Email</h3>
-                  <div class="box pre">{PLACEHOLDER_EMAIL}</div>
-                </div>
-                <div class="lock-overlay">
-                  <div class="lock-card">
-                    <div class="lock-title">🔒 Counter-Clause &amp; Negotiation Email Locked</div>
-                    <button class="btn primary block" on:click={unlockAll} disabled={unlocking}>
-                      {#if unlocking}
-                        Unlocking all clauses...
-                      {:else if credits < 1}
-                        Unlock All Clauses for ₹49 (Get 1 Credit) ⚡
-                      {:else}
-                        Use 1 Credit to Unlock All Clauses (Balance: {credits}) ⚡
-                      {/if}
+              <h3>Why It Hurts You</h3>
+              <p class="pre">{fmt(c.why_it_hurts)}</p>
+
+              <div class="locked-wrap">
+                {#if unlockedData[i]}
+                  <div class="premium">
+                    <h3>Safe Counter-Clause</h3>
+                    <div class="box pre">{fmt(unlockedData[i].safe_counter_clause)}</div>
+                    <button class="btn sm" on:click={() => copyText(unlockedData[i].safe_counter_clause, "c" + i)}>
+                      {copied === "c" + i ? "Copied ✓" : "Copy Clause"}
                     </button>
-                    {#if unlockError}
-                      <div class="error" role="alert">⚠️ {unlockError}</div>
-                    {/if}
+                    <h3>Polite Client Negotiation Email</h3>
+                    <div class="box pre">{fmt(unlockedData[i].polite_client_negotiation_email)}</div>
+                    <button class="btn sm" on:click={() => copyText(unlockedData[i].polite_client_negotiation_email, "e" + i)}>
+                      {copied === "e" + i ? "Copied ✓" : "Copy Email"}
+                    </button>
                   </div>
-                </div>
-              {/if}
-            </div>
-          </article>
-        {/each}
+                {:else}
+                  <div class="premium blurred" aria-hidden="true">
+                    <h3>Safe Counter-Clause</h3>
+                    <div class="box pre">{PLACEHOLDER}</div>
+                    <h3>Polite Client Negotiation Email</h3>
+                    <div class="box pre">{PLACEHOLDER_EMAIL}</div>
+                  </div>
+                  <div class="lock-overlay">
+                    <div class="lock-card">
+                      <div class="lock-title">🔒 Counter-Clause &amp; Negotiation Email Locked</div>
+                      <button class="btn primary block" on:click={unlockAll} disabled={unlocking}>
+                        {#if unlocking}
+                          Unlocking all clauses...
+                        {:else if credits < 1}
+                          Unlock All Clauses for ₹49 (Get 1 Credit) ⚡
+                        {:else}
+                          Use 1 Credit to Unlock All Clauses (Balance: {credits}) ⚡
+                        {/if}
+                      </button>
+                      {#if unlockError}
+                        <div class="error" role="alert">⚠️ {unlockError}</div>
+                      {/if}
+                    </div>
+                  </div>
+                {/if}
+              </div>
+            </article>
+          {/each}
 
-        {#if flagged.length === 0}
-          <section class="glass card"><p>No major red flags found in the text you pasted. ✅</p></section>
+          {#if flagged.length === 0}
+            <section class="glass card"><p>No major red flags found in the text you pasted. ✅</p></section>
+          {/if}
         {/if}
-      {/if}
+      </div>
 
-    {:else if tab === "radar"}
-      <section class="glass card">
-        <h2>💸 Contract Risk &amp; Loss Calculator</h2>
-        <p class="muted">Estimate your financial exposure before you even run the audit.</p>
-        <div class="seg slim">
-          <button class:on={jur === "india"} on:click={() => (jur = "india")}>🇮🇳 INR</button>
-          <button class:on={jur === "global"} on:click={() => (jur = "global")}>🌐 USD</button>
-        </div>
-        <div class="grid2">
-          <label>Project value ({jur === "india" ? "₹" : "$"})
-            <input type="number" min="0" inputmode="numeric" bind:value={calcValue} />
-          </label>
-          <label>Payment terms
-            <select bind:value={calcTerms}>
-              {#each TERMS as t}<option value={t}>Net-{t}</option>{/each}
-            </select>
-          </label>
-          <label>Liability
-            <select bind:value={calcLiab}>
-              <option value="capped">Capped at fees paid</option>
-              <option value="uncapped">Uncapped</option>
-            </select>
-          </label>
-          <label>IP ownership
-            <select bind:value={calcIp}>
-              <option value="payment">Transfers after full payment</option>
-              <option value="creation">Transfers on creation</option>
-            </select>
-          </label>
-          <label>Revisions
-            <select bind:value={calcRev}>
-              <option value="limited">Limited rounds</option>
-              <option value="unlimited">Unlimited</option>
-            </select>
-          </label>
-          <label>Your cost of money (% / year)
-            <input type="number" min="0" max="60" inputmode="numeric" bind:value={calcRate} />
-          </label>
-        </div>
-      </section>
+    {:else if currentRoute === "radar"}
+      <!-- ============ VIEW: RISK RADAR ============ -->
+      <div class="wrap narrow">
+        <div class="vhead"><h1>Risk Radar</h1><p class="muted">Estimate your financial exposure before you sign.</p></div>
 
-      <section class="glass card">
-        <div class="row between">
-          <h2>Your estimated exposure</h2>
-          <span class="badge {riskClass(calcResult.level)}">{calcResult.level} RISK</span>
-        </div>
-        <div class="meter"><div class="meter-pin" style="left: {meterPos(calcResult.level)}%"></div></div>
-        <div class="meter-labels"><span>LOW</span><span>MEDIUM</span><span>HIGH</span></div>
-        <ul class="lines">
-          <li><span>⏳ Cashflow frozen for</span><b>{calcResult.days} days</b></li>
-          <li><span>Cost of waiting for your money</span><b>{money(calcResult.delayCost, jur)}</b></li>
-          {#if calcResult.revLeak > 0}
-            <li><span>Unpaid revision leakage (illustrative)</span><b>{money(calcResult.revLeak, jur)}</b></li>
-          {/if}
-          {#if calcResult.ipAtRisk > 0}
-            <li><span>Fee at risk if the client keeps the work unpaid</span><b>{money(calcResult.ipAtRisk, jur)}</b></li>
-          {/if}
-          <li><span>Liability ceiling</span><b>{calcResult.uncapped ? "None (uncapped)" : money(calcResult.v, jur)}</b></li>
-        </ul>
-        <p class="muted small">Illustrative model, not a prediction: waiting cost = value × your yearly cost of money × days ÷ 365, and unlimited revisions are assumed to add unpaid work worth about 15% of the fee.</p>
-        <button class="btn primary block" on:click={() => goTab("audit")}>Now audit my real contract ⚡</button>
-      </section>
+        <section class="glass card">
+          <h2>💸 Contract Risk &amp; Loss Calculator</h2>
+          <div class="seg slim">
+            <button class:on={jur === "india"} on:click={() => (jur = "india")}>🇮🇳 INR</button>
+            <button class:on={jur === "global"} on:click={() => (jur = "global")}>🌐 USD</button>
+          </div>
+          <div class="grid2">
+            <label>Project fee ({jur === "india" ? "₹" : "$"})
+              <input type="number" min="0" inputmode="numeric" bind:value={calcValue} />
+            </label>
+            <label>Payment terms
+              <select bind:value={calcTerms}>
+                {#each TERMS as t}<option value={t}>Net-{t}</option>{/each}
+              </select>
+            </label>
+            <label>Liability type
+              <select bind:value={calcLiab}>
+                <option value="capped">Capped at fees paid</option>
+                <option value="uncapped">Uncapped</option>
+              </select>
+            </label>
+            <label>IP transfer condition
+              <select bind:value={calcIp}>
+                <option value="payment">Transfers after full payment</option>
+                <option value="creation">Transfers on creation</option>
+              </select>
+            </label>
+            <label>Revision limits
+              <select bind:value={calcRev}>
+                <option value="limited">Limited rounds</option>
+                <option value="unlimited">Unlimited</option>
+              </select>
+            </label>
+            <label>Your cost of money (% / year)
+              <input type="number" min="0" max="60" inputmode="numeric" bind:value={calcRate} />
+            </label>
+          </div>
+        </section>
 
-      <section class="glass card">
-        <h2>🗂️ Safe Contract Clause Vault</h2>
-        <p class="muted">Standard contractor-friendly clauses. Copy, paste, and adapt the brackets. Have a lawyer review high-value deals.</p>
-        {#each VAULT as v, i}
-          <div class="vault">
+        <section class="glass card">
+          <div class="row between">
+            <h2>Your estimated exposure</h2>
+            <span class="badge {riskClass(calcResult.level)}">{calcResult.level} RISK</span>
+          </div>
+          <div class="meter"><div class="meter-pin" style="left: {meterPos(calcResult.level)}%"></div></div>
+          <div class="meter-labels"><span>LOW</span><span>MEDIUM</span><span>HIGH</span></div>
+          <ul class="lines">
+            <li><span>⏳ Cashflow frozen for</span><b>{calcResult.days} days</b></li>
+            <li><span>Cost of delayed capital</span><b>{money(calcResult.delayCost, jur)}</b></li>
+            {#if calcResult.revLeak > 0}
+              <li><span>Estimated unpaid revision leak</span><b>{money(calcResult.revLeak, jur)}</b></li>
+            {/if}
+            {#if calcResult.ipAtRisk > 0}
+              <li><span>Fee at risk if the client keeps the work unpaid</span><b>{money(calcResult.ipAtRisk, jur)}</b></li>
+            {/if}
+            <li><span>Liability ceiling</span><b>{calcResult.uncapped ? "None (uncapped)" : money(calcResult.v, jur)}</b></li>
+          </ul>
+          <p class="muted small">Illustrative model, not a prediction: delayed-capital cost = fee × your yearly cost of money × days ÷ 365, and unlimited revisions are assumed to add unpaid work worth about 15% of the fee.</p>
+          <button class="btn primary block" on:click={() => go("audit")}>Now Audit Your Real Contract Against These Traps ⚡</button>
+        </section>
+      </div>
+
+    {:else if currentRoute === "vault"}
+      <!-- ============ VIEW: CLAUSE VAULT ============ -->
+      <div class="wrap narrow">
+        <div class="vhead"><h1>Clause Vault</h1><p class="muted">Contractor-friendly clauses. Copy, paste, and fill in the [brackets]. Have a lawyer review high-value deals.</p></div>
+
+        <input class="vsearch" type="search" placeholder="Search clauses (e.g. kill fee, deposit, liability)..." bind:value={vaultQuery} />
+        <div class="chips">
+          {#each VAULT_CATS as c}
+            <button class:on={vaultCat === c} on:click={() => (vaultCat = c)}>{c}</button>
+          {/each}
+        </div>
+
+        {#each vaultFiltered as v}
+          <article class="glass card vault">
             <div class="row between">
-              <b>{v.title}</b>
-              <button class="btn sm" on:click={() => copyText(v.text, "v" + i)}>{copied === "v" + i ? "Copied ✓" : "Copy"}</button>
+              <span class="cat">{v.title}</span>
+              <span class="badge low">{v.cat}</span>
             </div>
             <div class="box pre small">{v.text}</div>
-          </div>
+            <button class="btn sm" on:click={() => copyText(v.text, v.id)}>{copied === v.id ? "Copied ✓" : "Copy Clause"}</button>
+          </article>
         {/each}
-      </section>
-
-    {:else if tab === "pricing"}
-      <div class="packs">
-        {#each PACKS as p}
-          <div class="glass pack" class:popular={p.popular}>
-            {#if p.popular}<span class="ribbon">Most Popular</span>{/if}
-            <div class="pk-icon">{p.icon}</div>
-            <div class="pk-name">{p.name}</div>
-            <div class="price">₹{p.price}</div>
-            <p class="muted">{p.credits} credit{p.credits === 1 ? "" : "s"} • ₹{perContract(p)} per contract</p>
-            <ul class="feat">{#each p.features as f}<li>{f}</li>{/each}</ul>
-            <button class="btn primary block" on:click={() => openPay(p.id)}>Tap to Pay with UPI ⚡</button>
-          </div>
-        {/each}
+        {#if vaultFiltered.length === 0}
+          <section class="glass card"><p class="muted">No clauses match your search. Try a different word or category.</p></section>
+        {/if}
       </div>
-      <section class="glass card">
-        <h2>How it works</h2>
-        <ol class="steps">
-          <li>Tap to pay with UPI (GPay, PhonePe or Paytm opens on your phone).</li>
-          <li>Upload the payment success screenshot.</li>
-          <li>AI verifies it and your credits are added to your account.</li>
-        </ol>
-        <p class="muted">1 credit = 1 full contract unlock (all counter-clauses + negotiation emails).</p>
-      </section>
+
+    {:else if currentRoute === "pricing"}
+      <!-- ============ VIEW: PRICING ============ -->
+      <div class="wrap">
+        <div class="vhead center"><h1>Pay per contract. <span class="grad">No subscription.</span></h1><p class="muted">1 credit = 1 full contract unlock (all counter-clauses + negotiation emails).</p></div>
+
+        <div class="packs">
+          {#each PACKS as p}
+            <div class="glass pack" class:popular={p.popular}>
+              {#if p.popular}<span class="ribbon">Most Popular</span>{/if}
+              <div class="pk-icon">{p.icon}</div>
+              <div class="pk-name">{p.name}</div>
+              <div class="price">₹{p.price}</div>
+              <p class="muted">{p.credits} credit{p.credits === 1 ? "" : "s"} • ₹{perContract(p)} per contract</p>
+              <ul class="feat">{#each p.features as f}<li>{f}</li>{/each}</ul>
+              <button class="btn primary block" on:click={() => openPay(p.id)}>Tap to Pay with UPI ⚡</button>
+            </div>
+          {/each}
+        </div>
+
+        <h2 class="sec-title sec">How UPI payment works</h2>
+        <div class="grid3">
+          {#each STEPS as s}
+            <div class="glass card stepcard">
+              <div class="stepno">{s.n}</div>
+              <b>{s.t}</b>
+              <p class="muted">{s.d}</p>
+            </div>
+          {/each}
+        </div>
+        <p class="muted center">UPI ID: <b>{UPI_ID}</b> <button class="linkbtn" on:click={() => copyText(UPI_ID, "upi2")}>{copied === "upi2" ? "Copied ✓" : "Copy"}</button></p>
+
+        <div class="badges">
+          {#each BADGES as b}
+            <div class="glass badgecard"><span class="bi">{b.i}</span><div><b>{b.t}</b><div class="muted small">{b.d}</div></div></div>
+          {/each}
+        </div>
+      </div>
 
     {:else}
-      <section class="glass card">
-        <h2>Account Profile</h2>
-        {#if !sb}
-          <div class="error">Login is not configured yet. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy.</div>
-        {:else if user}
-          <div class="acct">
-            <div class="avatar big">{initial}</div>
-            <div>
-              <div class="pre"><b>{user.email}</b></div>
-              <div class="bigtxt">⚡ {credits} credit{credits === 1 ? "" : "s"}</div>
+      <!-- ============ VIEW: ACCOUNT ============ -->
+      <div class="wrap narrow">
+        <div class="vhead"><h1>Account</h1></div>
+        <section class="glass card">
+          {#if !sb}
+            <div class="error">Login is not configured yet. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy.</div>
+          {:else if user}
+            <div class="acct">
+              <div class="avatar big">{initial}</div>
+              <div>
+                <div class="pre"><b>{user.email}</b></div>
+                <div class="bigtxt">⚡ {credits} credit{credits === 1 ? "" : "s"}</div>
+              </div>
             </div>
-          </div>
-          <div class="row">
-            <button class="btn accent" on:click={() => openPay(1)}>Buy Credits</button>
-            <button class="btn" on:click={() => refreshCredits(user.id)}>Refresh balance</button>
-            <button class="btn" on:click={signOut}>Sign out</button>
-          </div>
-        {:else}
-          <p class="muted">Log in to save your credits and unlock fixes on any device.</p>
-          <div class="row">
-            <button class="btn primary" on:click={() => openAuth("login")}>Login</button>
-            <button class="btn" on:click={() => openAuth("signup")}>Create account</button>
-          </div>
-        {/if}
-      </section>
+            <div class="row">
+              <button class="btn accent" on:click={() => openPay(1)}>Buy Credits</button>
+              <button class="btn" on:click={() => refreshCredits(user.id)}>Refresh balance</button>
+              <button class="btn" on:click={signOut}>Sign out</button>
+            </div>
+          {:else}
+            <p class="muted">Log in to save your credits and unlock fixes on any device.</p>
+            <div class="row">
+              <button class="btn primary" on:click={() => openAuth("login")}>Login</button>
+              <button class="btn" on:click={() => openAuth("signup")}>Create account</button>
+            </div>
+          {/if}
+        </section>
+      </div>
     {/if}
-  </section>
-
-  <!-- PAIN POINTS -->
-  <section class="wrap sec">
-    <h2 class="sec-title">Why freelancers lose money</h2>
-    <p class="sec-sub">Common contract traps, shown as illustrative examples.</p>
-    <div class="grid3">
-      {#each PAINS as p}
-        <div class="glass card pain">
-          <div class="pain-ic">{p.icon}</div>
-          <h3 class="pain-t">{p.title}</h3>
-          <p class="muted">{p.text}</p>
-        </div>
-      {/each}
-    </div>
-  </section>
-
-  <!-- BEFORE / AFTER -->
-  <section class="wrap sec">
-    <h2 class="sec-title">Before vs after SafeClause</h2>
-    <div class="glass tbl-wrap">
-      <table>
-        <thead><tr><th></th><th>Signing blindly</th><th>With SafeClause</th></tr></thead>
-        <tbody>
-          {#each COMPARE as r}
-            <tr><td>{r[0]}</td><td class="bad">{r[1]}</td><td class="good">{r[2]}</td></tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- PRICING -->
-  <section id="pricing" class="wrap sec">
-    <h2 class="sec-title">Simple, pay-per-contract pricing</h2>
-    <p class="sec-sub">1 credit = 1 full contract unlock (all counter-clauses + negotiation emails). No subscription.</p>
-    <div class="packs">
-      {#each PACKS as p}
-        <div class="glass pack" class:popular={p.popular}>
-          {#if p.popular}<span class="ribbon">Most Popular</span>{/if}
-          <div class="pk-icon">{p.icon}</div>
-          <div class="pk-name">{p.name}</div>
-          <div class="price">₹{p.price}</div>
-          <p class="muted">{p.credits} credit{p.credits === 1 ? "" : "s"} • ₹{perContract(p)} per contract</p>
-          <ul class="feat">{#each p.features as f}<li>{f}</li>{/each}</ul>
-          <button class="btn primary block" on:click={() => openPay(p.id)}>Tap to Pay with UPI ⚡</button>
-        </div>
-      {/each}
-    </div>
-    <p class="muted center small">UPI ID: <b>{UPI_ID}</b> <button class="linkbtn" on:click={() => copyText(UPI_ID, "upi2")}>{copied === "upi2" ? "Copied ✓" : "Copy"}</button></p>
-  </section>
-
-  <!-- FAQ -->
-  <section class="wrap sec narrow">
-    <h2 class="sec-title">Frequently asked questions</h2>
-    {#each FAQS as f}
-      <details class="glass faq">
-        <summary>{f.q}</summary>
-        <p>{f.a}</p>
-      </details>
-    {/each}
-  </section>
+  </main>
 
   <footer class="wrap foot">
-    <div class="logo-static">🛡️ SafeClause</div>
-    <p class="muted small">SafeClause is an automated AI review tool, not a law firm. Nothing here is legal advice. Your contract text is not saved in our database; it is processed by a third-party AI provider to generate the audit.</p>
     <div class="flinks">
-      <button on:click={startAudit}>Audit</button>
-      <button on:click={() => goTab("radar")}>Risk Radar</button>
-      <button on:click={() => scrollToId("pricing")}>Pricing</button>
-      <button on:click={() => goTab("account")}>Account</button>
+      <button on:click={() => go("home")}>Home</button>
+      <button on:click={() => go("audit")}>Audit Scanner</button>
+      <button on:click={() => go("radar")}>Risk Radar</button>
+      <button on:click={() => go("vault")}>Clause Vault</button>
+      <button on:click={() => go("pricing")}>Pricing</button>
     </div>
+    <p class="muted small">SafeClause is an automated AI review tool, not a law firm. Nothing here is legal advice. Your contract text is not saved in our database; it is processed by a third-party AI provider to generate the audit.</p>
   </footer>
 </div>
 
@@ -964,27 +1103,39 @@
 <style>
   :global(:root) { --bg: #070a12; --indigo: #6366f1; --emerald: #10b981; --text: #e7eaf3; --muted: #8b95a8; --line: rgba(255, 255, 255, 0.09); }
   :global(*) { box-sizing: border-box; }
-  :global(html) { scroll-behavior: smooth; }
   :global(html), :global(body) { margin: 0; max-width: 100%; overflow-x: hidden; }
   :global(body) { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  .app { min-height: 100vh; background: radial-gradient(900px 520px at 12% -8%, rgba(99, 102, 241, 0.26), transparent), radial-gradient(760px 460px at 100% 4%, rgba(16, 185, 129, 0.14), transparent); }
+  .app { min-height: 100vh; display: flex; flex-direction: column; background: radial-gradient(900px 520px at 12% -8%, rgba(99, 102, 241, 0.26), transparent), radial-gradient(760px 460px at 100% 4%, rgba(16, 185, 129, 0.14), transparent); }
+  .view { flex: 1; padding-bottom: 20px; }
   .wrap { max-width: 1040px; margin: 0 auto; padding-left: 14px; padding-right: 14px; }
   .narrow { max-width: 820px; }
   .glass { background: rgba(255, 255, 255, 0.045); border: 1px solid var(--line); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
 
-  /* nav */
-  .nav { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; border-width: 0 0 1px 0; }
+  /* navbar */
+  .navwrap { position: sticky; top: 0; z-index: 30; background: rgba(7, 10, 18, 0.84); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+  .nav { max-width: 1100px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; }
   .logo { display: flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0; font-weight: 800; font-size: 1.05rem; background: none; border: 0; color: inherit; font-family: inherit; cursor: pointer; padding: 0; }
+  .links-d { display: none; gap: 2px; }
+  .links-d button, .menu button { background: none; border: 0; color: #a3adc0; font: inherit; font-size: 0.9rem; padding: 8px 12px; border-radius: 9px; cursor: pointer; }
+  .links-d button.active, .menu button.active { color: #fff; background: rgba(99, 102, 241, 0.22); }
   .nav-right { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .chip { flex-shrink: 0; white-space: nowrap; background: rgba(99, 102, 241, 0.18); border: 1px solid rgba(99, 102, 241, 0.55); color: #cfd0ff; padding: 3px 8px; font-size: 0.75rem; border-radius: 999px; font-family: inherit; font-weight: 700; cursor: pointer; box-shadow: 0 0 12px rgba(99, 102, 241, 0.35); }
   .nav-right .btn.sm { padding: 5px 10px; font-size: 0.75rem; white-space: nowrap; }
   .avatar { width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(16, 185, 129, 0.6); background: linear-gradient(135deg, #6366f1, #10b981); color: #fff; font-weight: 800; font-family: inherit; cursor: pointer; flex-shrink: 0; }
   .avatar.big { width: 52px; height: 52px; font-size: 1.3rem; }
+  .burger { width: 34px; height: 32px; flex-shrink: 0; border-radius: 9px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.05); color: var(--text); font-size: 1rem; cursor: pointer; }
+  .menu { display: flex; flex-direction: column; gap: 2px; max-width: 1100px; margin: 0 auto; padding: 4px 14px 12px; }
+  .menu button { text-align: left; padding: 11px 12px; }
   .short { display: none; }
   @media (max-width: 560px) { .long { display: none; } .short { display: inline; } }
+  @media (min-width: 880px) {
+    .links-d { display: flex; }
+    .burger { display: none; }
+    .menu { display: none; }
+  }
 
-  /* hero */
-  .hero { text-align: center; padding-top: 34px; padding-bottom: 26px; }
+  /* home hero */
+  .hero { text-align: center; padding-top: 38px; padding-bottom: 26px; }
   .pill { display: inline-block; padding: 6px 14px; border-radius: 999px; font-size: 0.8rem; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.45); color: #86efc4; }
   .hero h1 { margin: 16px auto 12px; max-width: 760px; font-size: clamp(1.9rem, 6.2vw, 3.3rem); line-height: 1.1; letter-spacing: -0.02em; }
   .grad { background: linear-gradient(90deg, #818cf8, #34d399); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -992,11 +1143,21 @@
   .cta-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 22px 0 16px; }
   .trust { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: center; color: var(--muted); font-size: 0.8rem; }
 
-  /* tabs + segmented */
-  #workspace { scroll-margin-top: 64px; padding-top: 6px; }
-  .tabs { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; }
-  .tabs button { flex: 1 1 0; min-width: 0; white-space: nowrap; padding: 10px 6px; font-size: 0.88rem; text-align: center; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: #9aa4b5; font-family: inherit; cursor: pointer; }
-  .tabs button.active { color: #fff; background: rgba(99, 102, 241, 0.24); border-color: rgba(99, 102, 241, 0.6); box-shadow: 0 0 18px rgba(99, 102, 241, 0.25); }
+  /* demo card */
+  .demo { border-radius: 18px; padding: 16px; box-shadow: 0 0 40px rgba(99, 102, 241, 0.18); }
+  .demo-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chips button { padding: 6px 13px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); color: #a3adc0; font: inherit; font-size: 0.82rem; cursor: pointer; }
+  .chips button.on { color: #fff; border-color: rgba(99, 102, 241, 0.7); background: rgba(99, 102, 241, 0.25); }
+  .demo-tag { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #ff8793; margin-bottom: 6px; }
+  .demo-tag.ok { color: #6ee7b7; }
+  blockquote.good { border-left-color: #10b981; }
+
+  /* view headers + segmented */
+  .vhead { padding: 26px 0 6px; }
+  .vhead h1 { margin: 0 0 4px; font-size: clamp(1.5rem, 5vw, 2.1rem); }
+  .vhead p { margin: 0; }
+  .center { text-align: center; }
   .seg { display: flex; gap: 6px; margin: 12px 0 0; }
   .seg button { flex: 1; padding: 9px 8px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); color: #a3adc0; font: inherit; font-size: 0.85rem; cursor: pointer; }
   .seg button.on { color: #fff; border-color: rgba(16, 185, 129, 0.65); background: rgba(16, 185, 129, 0.16); }
@@ -1011,7 +1172,6 @@
   .between { justify-content: space-between; }
   .muted { color: var(--muted); font-size: 0.85rem; }
   .small { font-size: 0.78rem; }
-  .center { text-align: center; }
   .pre { white-space: pre-wrap; word-break: break-word; line-height: 1.55; }
   .btn { font: inherit; cursor: pointer; border-radius: 11px; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.06); color: var(--text); padding: 10px 14px; text-decoration: none; display: inline-block; text-align: center; }
   .btn.sm { padding: 6px 11px; font-size: 0.85rem; }
@@ -1024,9 +1184,10 @@
   @keyframes shimmer { 0% { background-position: 0% 0; } 100% { background-position: 200% 0; } }
   .btn.file { cursor: pointer; }
   .upi { background: linear-gradient(135deg, #059669, #10b981); box-shadow: 0 0 22px rgba(16, 185, 129, 0.4); margin-bottom: 8px; }
-  textarea, input[type="email"], input[type="password"], input[type="number"], select { width: 100%; background: rgba(5, 8, 15, 0.7); color: inherit; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 11px; padding: 11px; font: inherit; margin-bottom: 8px; }
+  textarea, input[type="email"], input[type="password"], input[type="number"], input[type="search"], select { width: 100%; background: rgba(5, 8, 15, 0.7); color: inherit; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 11px; padding: 11px; font: inherit; margin-bottom: 8px; }
   textarea { resize: vertical; }
   input[type="file"] { width: 100%; margin-bottom: 8px; color: #9aa4b5; }
+  .vsearch { margin-top: 12px; }
   label { display: block; font-size: 0.8rem; color: #a3adc0; }
   .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 4px 12px; }
   .count { font-size: 0.75rem; color: #7d889b; margin: -2px 0 10px; }
@@ -1037,10 +1198,10 @@
   .badge.med { background: rgba(245, 158, 11, 0.2); color: #ffd36b; }
   .badge.low { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
   .cat { font-weight: 800; font-size: 0.85rem; letter-spacing: 0.05em; }
-  blockquote { margin: 0; padding: 10px 14px; border-left: 3px solid #ff8793; background: rgba(255, 255, 255, 0.04); border-radius: 6px; white-space: pre-wrap; font-style: italic; }
+  blockquote { margin: 0 0 8px; padding: 10px 14px; border-left: 3px solid #ff8793; background: rgba(255, 255, 255, 0.04); border-radius: 6px; white-space: pre-wrap; font-style: italic; }
   .box { background: rgba(5, 8, 15, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 12px; margin-bottom: 8px; }
 
-  /* meter */
+  /* meter + calculator */
   .meter { position: relative; height: 10px; border-radius: 999px; margin: 10px 0 4px; background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444); }
   .meter-pin { position: absolute; top: -5px; width: 6px; height: 20px; margin-left: -3px; border-radius: 3px; background: #fff; box-shadow: 0 0 10px rgba(255, 255, 255, 0.8); transition: left 0.4s ease; }
   .meter-labels { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--muted); margin-bottom: 8px; }
@@ -1048,7 +1209,6 @@
   .lines li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
   .lines li span { color: #a3adc0; }
   .lines li b { text-align: right; white-space: nowrap; }
-  .vault { margin-top: 10px; }
 
   /* paywall */
   .locked-wrap { position: relative; margin-top: 6px; }
@@ -1068,9 +1228,13 @@
   .feat { list-style: none; padding: 0; margin: 12px 0 16px; text-align: left; font-size: 0.88rem; color: #c3cad8; }
   .feat li { padding: 4px 0 4px 22px; position: relative; }
   .feat li::before { content: "✓"; position: absolute; left: 0; color: var(--emerald); font-weight: 800; }
-  .steps { padding-left: 20px; line-height: 1.7; color: #c3cad8; }
+  .stepcard { margin-top: 0; }
+  .stepno { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, #6366f1, #10b981); }
+  .badges { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-top: 18px; }
+  .badgecard { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 14px; }
+  .bi { font-size: 1.4rem; }
 
-  /* sections */
+  /* home sections */
   .sec { padding-top: 44px; }
   .sec-title { text-align: center; font-size: clamp(1.4rem, 4.5vw, 2rem); margin: 0 0 6px; }
   .sec-sub { text-align: center; color: var(--muted); margin: 0 0 18px; }
@@ -1085,16 +1249,22 @@
   td:first-child { font-weight: 700; white-space: nowrap; }
   td.bad { color: #fca5a5; }
   td.good { color: #86efc4; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .stat { border-radius: 16px; padding: 18px 14px; text-align: center; }
+  .stat b { display: block; font-size: 1.8rem; background: linear-gradient(90deg, #818cf8, #34d399); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .stat span { display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem; }
   .faq { border-radius: 14px; padding: 4px 16px; margin-top: 10px; }
   .faq summary { cursor: pointer; padding: 12px 0; font-weight: 700; }
   .faq p { margin: 0 0 12px; color: #b4bccb; line-height: 1.6; font-size: 0.92rem; }
+  .final { text-align: center; padding: 34px 18px; border-radius: 22px; border: 1px solid rgba(99, 102, 241, 0.5); background: linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(16, 185, 129, 0.14)); box-shadow: 0 0 50px rgba(99, 102, 241, 0.25); }
+  .final h2 { font-size: clamp(1.3rem, 4.5vw, 1.9rem); }
+  .final p { color: #b4bccb; max-width: 520px; margin: 0 auto 18px; }
   .acct { display: flex; align-items: center; gap: 14px; margin: 10px 0 14px; }
   .bigtxt { font-size: 1.3rem; font-weight: 800; margin-top: 4px; }
 
   /* footer */
-  .foot { text-align: center; padding-top: 48px; padding-bottom: 34px; }
-  .logo-static { font-weight: 800; font-size: 1.1rem; margin-bottom: 8px; }
-  .flinks { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+  .foot { text-align: center; padding-top: 36px; padding-bottom: 30px; }
+  .flinks { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
   .flinks button, .links button, .linkbtn { background: none; border: 0; color: #818cf8; font: inherit; font-size: 0.85rem; cursor: pointer; padding: 0; }
 
   /* modals */
