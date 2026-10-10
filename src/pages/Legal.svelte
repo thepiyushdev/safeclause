@@ -6,7 +6,7 @@
 </script>
 
 <div class="wrap narrow page prose">
-  <h1 class="h2" style="font-size:clamp(1.8rem,5vw,2.4rem)">{doc.title}</h1>
+  <h1 class="h2">{doc.title}</h1>
   <p class="muted small">Last updated {doc.updated}</p>
   <DisclaimerBanner />
   {#each doc.sections as s}

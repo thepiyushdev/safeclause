@@ -11,7 +11,7 @@
 
 <div class="wrap page">
   <div class="center">
-    <h1 class="h2" style="font-size:clamp(1.8rem,5.5vw,2.6rem)">Scan free. <span class="grad">Pay only to unlock.</span></h1>
+    <h1 class="h2">Scan free. <span class="grad">Pay only to unlock.</span></h1>
     <p class="lead">No subscription. 1 credit = 1 full contract unlock.</p>
   </div>
 

@@ -33,7 +33,7 @@
 </script>
 
 <div class="wrap narrow page">
-  <h1 class="h2" style="font-size:clamp(1.6rem,5vw,2.3rem)">Contract risk calculator</h1>
+  <h1 class="h2">Contract risk calculator</h1>
   <p class="muted">Estimate what risky terms could cost you before you sign.</p>
 
   <section class="card">

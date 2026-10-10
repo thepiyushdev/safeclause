@@ -36,7 +36,7 @@
         {#if active === k}
           <p class="muted small" style="margin:8px 0 4px">{FIND[k].why}</p>
           <div class="lbl" style="margin:8px 0 4px">Suggested safer rewrite</div>
-          <p class="ins" style="margin:0;font-size:.85rem">{FIND[k].fix}</p>
+          <p class="ins" style="margin:0">{FIND[k].fix}</p>
         {/if}
       </div>
     {/each}

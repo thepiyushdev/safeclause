@@ -91,14 +91,37 @@ export function initApp() {
     const res = sb.auth.onAuthStateChange(function (event, s) {
       session.set(s);
       if (event === "PASSWORD_RECOVERY") showRecovery.set(true);
+      if (event === "SIGNED_IN") {
+        // After Google sign-in the browser returns to the home page; send the user back to where they were.
+        let back = null;
+        try { back = window.sessionStorage.getItem("cr_return"); window.sessionStorage.removeItem("cr_return"); } catch (e) {}
+        if (back && ROUTE_META[normalize(back)] && normalize(window.location.pathname) !== normalize(back)) go(back);
+      }
     });
     authSub = res.data.subscription;
   }
+  if (window.location.search.indexOf("debug=layout") !== -1) setTimeout(debugLayout, 900);
   return function () {
     window.removeEventListener("popstate", onPop);
     unsubUser();
     if (authSub) authSub.unsubscribe();
   };
+}
+
+// Open any page with ?debug=layout to see the real viewport width and which elements overflow it.
+export function debugLayout() {
+  const vw = document.documentElement.clientWidth;
+  const bad = [];
+  document.querySelectorAll("body *").forEach(function (el) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && (r.right > vw + 1 || r.left < -1)) bad.push(el);
+  });
+  bad.slice(0, 12).forEach(function (el) { el.style.outline = "2px solid red"; });
+  const names = bad.slice(0, 6).map(function (el) {
+    return el.tagName.toLowerCase() + (typeof el.className === "string" && el.className ? "." + el.className.split(" ").join(".") : "");
+  });
+  const meta = document.querySelector('meta[name="viewport"]');
+  window.alert("innerWidth=" + window.innerWidth + " clientWidth=" + vw + " dpr=" + window.devicePixelRatio + "\nviewport meta: " + (meta ? meta.content : "MISSING") + "\noverflowing: " + (names.length ? names.join(" | ") : "none"));
 }
 
 export async function authHeaders() {

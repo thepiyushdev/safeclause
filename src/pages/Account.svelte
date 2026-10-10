@@ -9,7 +9,7 @@
 </script>
 
 <div class="wrap narrow page">
-  <h1 class="h2" style="font-size:clamp(1.6rem,5vw,2.3rem)">Account</h1>
+  <h1 class="h2">Account</h1>
   <section class="card">
     {#if !sb}
       <div class="error">Login is not configured yet. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy.</div>
@@ -22,15 +22,15 @@
         </div>
       </div>
       <div class="row">
-        <button class="btn primary" on:click={() => openPay(1)}>Buy credits</button>
-        <button class="btn" on:click={() => refreshCredits($user.id)}>Refresh balance</button>
-        <button class="btn" on:click={signOut}>Sign out</button>
+        <button class="btn primary mfull" on:click={() => openPay(1)}>Buy credits</button>
+        <button class="btn mfull" on:click={() => refreshCredits($user.id)}>Refresh balance</button>
+        <button class="btn mfull" on:click={signOut}>Sign out</button>
       </div>
     {:else}
       <p class="muted">Log in to save your credits and unlock rewrites on any device.</p>
       <div class="row">
-        <button class="btn primary" on:click={() => openAuth("login")}>Log in</button>
-        <button class="btn" on:click={() => openAuth("signup")}>Create account</button>
+        <button class="btn primary mfull" on:click={() => openAuth("login")}>Log in</button>
+        <button class="btn mfull" on:click={() => openAuth("signup")}>Create account</button>
       </div>
     {/if}
   </section>

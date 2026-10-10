@@ -23,7 +23,7 @@
 </script>
 
 <div class="wrap narrow page">
-  <h1 class="h2" style="font-size:clamp(1.6rem,5vw,2.3rem)">Clause library</h1>
+  <h1 class="h2">Clause library</h1>
   <p class="muted">Contractor-friendly clauses. Copy, paste, and fill in the [brackets]. Have a lawyer review high-value deals.</p>
 
   <input type="search" placeholder="Search clauses (kill fee, deposit, liability...)" bind:value={q} />
@@ -38,7 +38,7 @@
         <span class="badge low">{v.cat}</span>
       </div>
       <p class="ins" style="margin:0 0 10px">{v.text}</p>
-      <button class="btn sm" on:click={() => copy(v)}>{copied === v.id ? "Copied ✓" : "Copy Clause"}</button>
+      <button class="btn sm mfull" on:click={() => copy(v)}>{copied === v.id ? "Copied ✓" : "Copy Clause"}</button>
     </article>
   {/each}
   {#if items.length === 0}

@@ -235,7 +235,7 @@
 </script>
 
 <div class="wrap narrow page">
-  <h1 class="h2" style="font-size:clamp(1.6rem,5vw,2.3rem)">Contract scanner</h1>
+  <h1 class="h2">Contract scanner</h1>
   <p class="muted">Drop a contract to get a risk score, flagged clauses and safer rewrites.</p>
 
   <div class="seg" role="group" aria-label="Jurisdiction">
@@ -261,12 +261,10 @@
 
     <label for="ct">…or paste the contract text</label>
     <textarea id="ct" bind:value={text} rows="9" maxlength={MAX_CHARS} placeholder="Paste your client contract here..."></textarea>
-    <div class="row between">
-      <span class="muted small num">{text.length} / {MAX_CHARS}</span>
-      <span class="row" style="margin:0">
-        <button class="btn sm" on:click={() => loadSample("india")}>Sample India</button>
-        <button class="btn sm" on:click={() => loadSample("us")}>Sample US</button>
-      </span>
+    <div class="muted small num" style="margin:0 0 10px">{text.length} / {MAX_CHARS}</div>
+    <div class="row">
+      <button class="btn sm mfull" on:click={() => loadSample("india")}>Sample India</button>
+      <button class="btn sm mfull" on:click={() => loadSample("us")}>Sample US</button>
     </div>
 
     <button class="btn primary lg block" style="margin-top:12px" on:click={scan} disabled={loading || readingFile}>
@@ -298,7 +296,7 @@
             <span class="muted small num">{flagged.length} flagged • {highCount} high</span>
           </div>
           <p class="pre" style="margin:0 0 10px">{fmt(result.executive_summary)}</p>
-          <button class="btn sm" on:click={exportPdf}>📄 {allUnlocked ? "Download full PDF report" : "Download PDF preview"}</button>
+          <button class="btn sm mfull" on:click={exportPdf}>📄 {allUnlocked ? "Download full PDF report" : "Download PDF preview"}</button>
         </div>
       </div>
     </section>

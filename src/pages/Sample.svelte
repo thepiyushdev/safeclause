@@ -29,7 +29,7 @@
 
 <div class="wrap narrow page">
   <span class="pill">Interactive sample • fictional data</span>
-  <h1 class="h2" style="margin-top:12px;font-size:clamp(1.6rem,5vw,2.3rem)">Sample audit report</h1>
+  <h1 class="h2" style="margin-top:12px">Sample audit report</h1>
   <p class="muted">{R.title}. Open the cards, filter by severity, and copy the rewrites. No upload needed.</p>
 
   <section class="card iri">
@@ -38,7 +38,7 @@
       <div>
         <div class="row" style="margin-bottom:6px"><RiskBadge level={R.level} /><span class="muted small num">{R.clauses.length} flagged clauses</span></div>
         <p style="margin:0 0 10px">{R.summary}</p>
-        <button class="btn sm" on:click={exportPdf}>📄 Export PDF report</button>
+        <button class="btn sm mfull" on:click={exportPdf}>📄 Export PDF report</button>
         {#if note}<div class="error">{note}</div>{/if}
       </div>
     </div>
