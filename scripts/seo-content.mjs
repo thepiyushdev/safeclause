@@ -1,5 +1,5 @@
 import { ROUTE_META, SITE, BRAND, OG_IMAGE } from "../src/lib/meta.mjs";
-import { PACKS, BENTO, FAQS, SAMPLE_REPORT, VAULT } from "../src/lib/data.mjs";
+import { PLANS, FREE_FEATURES, PRO_FEATURES, BENTO, FAQS, SAMPLE_REPORT, VAULT } from "../src/lib/data.mjs";
 import { LEGAL } from "../src/lib/legal.mjs";
 
 export function esc(s) {
@@ -36,7 +36,7 @@ export function headTags(p) {
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
       description: m.description,
-      offers: { "@type": "AggregateOffer", priceCurrency: "INR", lowPrice: "49", highPrice: "299", offerCount: String(PACKS.length) },
+      offers: { "@type": "AggregateOffer", priceCurrency: "INR", lowPrice: "499", highPrice: "3999", offerCount: String(PLANS.length) },
     };
     h += '<script type="application/ld+json">' + JSON.stringify(ld) + "</script>\n";
   }
@@ -44,7 +44,7 @@ export function headTags(p) {
 }
 
 const BTN = "display:inline-block;padding:11px 20px;border-radius:12px;font-weight:600;text-decoration:none;margin:4px 8px 4px 0;";
-const NAVLINKS = [["/", "Home"], ["/dashboard", "Scanner"], ["/sample", "Sample report"], ["/pricing", "Pricing"], ["/radar", "Risk calculator"], ["/vault", "Clause library"], ["/privacy", "Privacy"], ["/terms", "Terms"]];
+const NAVLINKS = [["/", "Home"], ["/dashboard", "Scanner"], ["/scope-guard", "Scope Guard"], ["/chaser", "Payment Chaser"], ["/sample", "Sample report"], ["/pricing", "Pricing"], ["/radar", "Risk calculator"], ["/vault", "Clause library"], ["/privacy", "Privacy"], ["/terms", "Terms"]];
 
 function wrap(inner) {
   const nav = NAVLINKS.map(function (l) { return '<a href="' + l[0] + '" style="color:#4f46e5;margin-right:14px">' + l[1] + "</a>"; }).join("");
@@ -67,7 +67,7 @@ function homeShell() {
   h += para("ClauseRadar reads your client agreement, flags uncapped liability, Net-60 and Net-90 payment traps and IP grabs, explains each risk in plain English, and writes the counter-proposal email for you.");
   h += "<p>" + cta("/dashboard", "Upload Contract", true) + cta("/sample", "View Sample Audit Report", false) + "</p>";
   BENTO.forEach(function (b) { h += sec(b.title, [b.text]); });
-  h += sec("Zero contract training", ["We do not store or use your agreements to train models. Scans are ephemeral. Contract text is processed by third-party AI providers under their API terms."]);
+  h += sec("Zero contract training", ["We never use your agreements to train models, and scans are not stored by default. If you opt in to Contract Memory, we save only the terms and short clause excerpts you review. Contract text is processed by third-party AI providers under their API terms."]);
   h += '<h2 style="font-size:22px;margin:28px 0 6px">Frequently asked questions</h2>';
   FAQS.forEach(function (f) { h += '<h3 style="font-size:17px;margin:16px 0 4px">' + esc(f.q) + "</h3>" + para(f.a); });
   return wrap(h);
@@ -84,9 +84,17 @@ export function shellHtml(p) {
     return wrap(h1("Contract scanner") + para("Upload a PDF or DOCX, or paste contract text. ClauseRadar flags liability, payment terms, scope creep, IP rights and termination risks, explains each one in plain English and suggests a safer rewrite.") + "<p>" + cta("/sample", "View Sample Audit Report", false) + "</p>");
   }
   if (p === "/pricing") {
-    let h = h1("Pricing") + para("Scanning is free: you get the overall risk score, categorised flags, exact clause quotes and plain-English explanations. Unlock the full results of a contract, including safer rewrites, counter-proposal emails and a PDF report, with credits.");
-    PACKS.forEach(function (k) { h += sec(k.name + " – ₹" + k.price, [k.credits + " credit(s). " + k.features.join(". ") + "."]); });
+    let h = h1("Pricing") + para("Scanning is free. Go Pro to unlock every safer rewrite, Scope Guard, Payment Chaser, PDF reports and use on up to 3 devices.");
+    h += sec("Free", FREE_FEATURES);
+    h += sec("Pro", PRO_FEATURES);
+    PLANS.forEach(function (k) { h += sec(k.name + " – ₹" + k.price + " per " + k.per, ["Each verified UPI payment adds " + k.days + " days of Pro."]); });
     return wrap(h);
+  }
+  if (p === "/scope-guard") {
+    return wrap(h1("Scope Guard") + para("Paste the client's quick tweak message. Find out in seconds if it is in scope, billable or a grey area. You get the exact contract clause, a polite ready-to-send reply, a change-order quote and a revision meter.") + "<p>" + cta("/dashboard", "Scan a contract first", true) + "</p>");
+  }
+  if (p === "/chaser") {
+    return wrap(h1("Payment Chaser") + para("The contract says Net-30 and the client is on day 41. Track each invoice against your contract's payment terms and get an escalation sequence: a friendly reminder, a firm reminder quoting the late-fee clause, and a formal demand notice.") + "<p>" + cta("/dashboard", "Scan a contract first", true) + "</p>");
   }
   if (p === "/radar") {
     return wrap(h1("Freelance contract risk calculator") + para("Enter your project fee, payment terms, liability, IP transfer and revision limits to estimate what late payment, unpaid revisions and uncapped liability could cost you."));

@@ -1,3 +1,8 @@
+export const PLANS = [
+  { id: "pro_month", name: "Pro Monthly", price: 499, days: 30, per: "month", popular: false },
+  { id: "pro_year", name: "Pro Yearly", price: 3999, days: 365, per: "year", popular: true, badge: "Save 33%" },
+];
+
 export const PACKS = [
   { id: 1, credits: 1, price: 49, icon: "⚡", name: "Single Audit Pass", popular: false,
     features: ["1 full contract unlock", "Safer rewrite for every flagged clause", "Counter-proposal emails + PDF report"] },
@@ -5,6 +10,22 @@ export const PACKS = [
     features: ["3 full contract unlocks", "Save ₹18 versus single passes", "Counter-proposal emails + PDF report"] },
   { id: 8, credits: 8, price: 299, icon: "👑", name: "Agency Pack", popular: false,
     features: ["8 full contract unlocks", "Lowest price per contract", "Built for agencies and teams"] },
+];
+
+export const FREE_FEATURES = [
+  "Full contract scans with risk score preview",
+  "1 active project in Contract Memory",
+  "3 Scope Guard checks per month",
+  "1 active invoice in Payment Chaser",
+  "1 device at a time",
+];
+
+export const PRO_FEATURES = [
+  "Unlimited contract audits with all safer rewrites unlocked",
+  "Unlimited Scope Guard checks and change-order quotes",
+  "Unlimited invoices with the full legal escalation letters",
+  "PDF report exports for every audit",
+  "Use ClauseRadar on up to 3 devices at the same time",
 ];
 
 export const BENTO = [
@@ -18,8 +39,9 @@ export const FAQS = [
   { q: "Is this legal advice?", a: "No. ClauseRadar is an automated AI review tool, not a law firm. It highlights common risks and suggests standard protective wording. For high-value or unusual contracts, have a qualified lawyer review the final terms." },
   { q: "How fast is the audit?", a: "Most audits finish in a few seconds, and longer contracts (up to 10,000 characters) in well under 30 seconds." },
   { q: "Will asking for changes upset my client?", a: "The counter-proposal emails are written to be polite and professional, presenting changes as standard protective terms. Many clients accept balanced terms, but there are no guarantees, and you decide what to send." },
-  { q: "What does 1 credit unlock?", a: "One credit unlocks every flagged clause of one audited contract: all safer rewrites, all counter-proposal emails and the full PDF report." },
-  { q: "Is my contract stored?", a: "We do not save your contract text in our database and we do not use it to train models. It is processed by third-party AI providers under their API terms, so avoid pasting anything you are not allowed to share." },
+  { q: "What does Pro include?", a: "Pro unlocks every safer rewrite and counter-proposal email on every audit, plus unlimited Scope Guard checks, unlimited Payment Chaser invoices, PDF exports and use on up to 3 devices at the same time. Scanning and the risk score preview stay free." },
+  { q: "How does billing work?", a: "You pay by UPI and upload the payment screenshot. Each verified payment adds 30 days (monthly) or 365 days (yearly) of Pro to your account. Automatic renewal is not switched on yet, so you renew by paying again before your Pro time ends." },
+  { q: "Is my contract stored?", a: "By default, no. Scans are not saved in our database and we do not use your contracts to train models. If you choose Save to Contract Memory, we keep only the project terms and short clause excerpts you review and approve, never the full contract, and you can delete them any time. Contract text is processed by third-party AI providers under their API terms." },
   { q: "Does it work for Indian contracts?", a: "Yes. Choose the India setting and the audit is tuned for the Indian Contract Act 1872 and MSMED Act payment norms. Choose Global for US, UK and remote contracts." },
 ];
 

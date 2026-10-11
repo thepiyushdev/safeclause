@@ -1,6 +1,5 @@
 export const SITE = "https://clauseradar.online";
 export const BRAND = "ClauseRadar";
-// Shown on the Privacy and Terms pages. Change it if this mailbox does not exist.
 export const CONTACT_EMAIL = "support@clauseradar.online";
 export const OG_IMAGE = SITE + "/og.png";
 
@@ -22,7 +21,17 @@ export const ROUTE_META = {
   },
   "/pricing": {
     title: "Pricing – ClauseRadar",
-    description: "Scan contracts free. Unlock safer rewrites, counter-proposal emails and PDF reports from ₹49 per contract.",
+    description: "Scan contracts free. Go Pro for ₹499 a month to unlock every rewrite, Scope Guard, Payment Chaser and PDF reports.",
+    index: true, priority: "0.8",
+  },
+  "/scope-guard": {
+    title: "Scope Guard – Stop Client Scope Creep | ClauseRadar",
+    description: "Paste a client's quick tweak request. Find out in seconds if it is in scope, billable or a grey area, with a polite reply and a change-order quote.",
+    index: true, priority: "0.8",
+  },
+  "/chaser": {
+    title: "Payment Chaser – Late Invoice Reminders | ClauseRadar",
+    description: "Track invoices against your contract's payment terms and get an escalation sequence from a friendly reminder to a formal demand notice.",
     index: true, priority: "0.8",
   },
   "/radar": {
