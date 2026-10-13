@@ -3,29 +3,24 @@ export const PLANS = [
   { id: "pro_year", name: "Pro Yearly", price: 3999, days: 365, per: "year", popular: true, badge: "Save 33%" },
 ];
 
-export const PACKS = [
-  { id: 1, credits: 1, price: 49, icon: "⚡", name: "Single Audit Pass", popular: false,
-    features: ["1 full contract unlock", "Safer rewrite for every flagged clause", "Counter-proposal emails + PDF report"] },
-  { id: 3, credits: 3, price: 129, icon: "🛡️", name: "Freelancer Shield Pack", popular: true,
-    features: ["3 full contract unlocks", "Save ₹18 versus single passes", "Counter-proposal emails + PDF report"] },
-  { id: 8, credits: 8, price: 299, icon: "👑", name: "Agency Pack", popular: false,
-    features: ["8 full contract unlocks", "Lowest price per contract", "Built for agencies and teams"] },
-];
+// Legacy alias so any older import of PACKS keeps building. The UI no longer sells credit packs.
+export const PACKS = PLANS.map(function (p) {
+  return { id: p.id, credits: 0, price: p.price, icon: "⚡", name: p.name, popular: !!p.popular, features: [] };
+});
 
 export const FREE_FEATURES = [
-  "Full contract scans with risk score preview",
+  "Full basic scans and risk score preview",
   "1 active project in Contract Memory",
   "3 Scope Guard checks per month",
-  "1 active invoice in Payment Chaser",
-  "1 device at a time",
+  "1 active invoice tracker in Payment Chaser",
 ];
 
 export const PRO_FEATURES = [
-  "Unlimited contract audits with all safer rewrites unlocked",
+  "Unlimited contract audit rewrites and negotiation emails",
   "Unlimited Scope Guard checks and change-order quotes",
-  "Unlimited invoices with the full legal escalation letters",
-  "PDF report exports for every audit",
-  "Use ClauseRadar on up to 3 devices at the same time",
+  "Unlimited Payment Chaser invoices and legal escalation letters",
+  "PDF exports for all audits",
+  "Multi-device access: up to 3 simultaneous devices",
 ];
 
 export const BENTO = [

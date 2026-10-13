@@ -1,3 +1,4 @@
+// Runs after "vite build". Writes one static HTML file per route plus robots.txt and sitemap.xml.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

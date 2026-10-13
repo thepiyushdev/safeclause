@@ -1,11 +1,15 @@
 <script>
-  import { route, user, credits, link, openAuth, openPay } from "./app.js";
+  import { route, user, isPro, link, openAuth, openPay, signOutThisDevice } from "./app.js";
 
   let open = false;
-  const LINKS = [["/dashboard", "Scanner"], ["/sample", "Sample report"], ["/radar", "Risk calculator"], ["/vault", "Clause library"], ["/pricing", "Pricing"]];
+  // opt = secondary links: always in the mobile menu, shown on very wide desktops only
+  const LINKS = [
+    ["/dashboard", "Scanner", false], ["/scope-guard", "Scope Guard", false], ["/chaser", "Payment Chaser", false],
+    ["/sample", "Sample Report", false], ["/pricing", "Pricing", false],
+    ["/radar", "Risk calculator", true], ["/vault", "Clause library", true],
+  ];
 
   $: initial = $user && $user.email ? $user.email.charAt(0).toUpperCase() : "";
-  $: short = $credits >= 10000 ? Math.floor($credits / 100) / 10 + "k" : String($credits);
 
   function nav(e, p) {
     open = false;
@@ -28,18 +32,18 @@
 
     <nav class="nav-links" aria-label="Main">
       {#each LINKS as l}
-        <a href={l[0]} class:active={$route === l[0]} on:click={(e) => nav(e, l[0])}>{l[1]}</a>
+        <a href={l[0]} class:opt={l[2]} class:active={$route === l[0]} on:click={(e) => nav(e, l[0])}>{l[1]}</a>
       {/each}
     </nav>
 
     <div class="nav-right">
-      <a class="credit" href="/pricing" title={$credits + " credits"} on:click={(e) => nav(e, "/pricing")}>⚡ <b class="num">{short}</b></a>
+      <a class="credit" class:pro={$isPro} href="/pricing" title={$isPro ? "Pro plan" : "Free plan. Tap to upgrade"} on:click={(e) => nav(e, "/pricing")}><span class="pl-pre">Plan: </span><b>{$isPro ? "Pro ⚡" : "Free"}</b></a>
       <div class="nav-desktop">
-        <button class="btn sm" on:click={() => openPay(1)}>Buy credits</button>
+        {#if !$isPro}<button class="btn sm primary" on:click={() => openPay("pro_year")}>Upgrade</button>{/if}
         {#if $user}
           <a class="avatar" href="/account" title={$user.email} on:click={(e) => nav(e, "/account")}>{initial}</a>
         {:else}
-          <button class="btn sm primary" on:click={() => openAuth("login")}>Log in</button>
+          <button class="btn sm" on:click={() => openAuth("login")}>Log in</button>
         {/if}
       </div>
       <button class="burger" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} on:click={() => (open = !open)}>{open ? "✕" : "☰"}</button>
@@ -53,7 +57,7 @@
         <a href={l[0]} class:active={$route === l[0]} on:click={(e) => nav(e, l[0])}>{l[1]}</a>
       {/each}
       <hr />
-      <button class="mi" on:click={() => act(() => openPay(1))}>⚡ Buy credits</button>
+      {#if !$isPro}<button class="mi" on:click={() => act(() => openPay("pro_year"))}>⚡ Upgrade to Pro</button>{/if}
       {#if $user}
         <a href="/account" class:active={$route === "/account"} on:click={(e) => nav(e, "/account")}>👤 Account ({$user.email})</a>
       {:else}

@@ -1,58 +1,46 @@
 <script>
-  import { openPay, perContract } from "../lib/app.js";
-  import { PACKS } from "../lib/data.mjs";
+  import { openPay, isPro, profile, fmtDate } from "../lib/app.js";
+  import { PLANS, FREE_FEATURES, PRO_FEATURES } from "../lib/data.mjs";
 
   const STEPS = [
-    ["1", "Tap to pay", "Choose a pack and tap the UPI button. GPay, PhonePe or Paytm opens with the amount filled in."],
+    ["1", "Tap to pay", "Choose Monthly or Yearly and tap the UPI button. GPay, PhonePe or Paytm opens with the amount filled in."],
     ["2", "Capture the success screen", "Take a screenshot showing the amount, receiver and transaction ID."],
-    ["3", "Upload and verify", "Upload it in the payment window. AI checks the details and adds your credits."],
+    ["3", "Upload and verify", "Upload it in the payment window. AI checks the details and adds Pro time to your account."],
   ];
+  let billing = "pro_year";
+  $: plan = PLANS.find(function (p) { return p.id === billing; }) || PLANS[1];
 </script>
 
 <div class="wrap page">
   <div class="center">
-    <h1 class="h2">Scan free. <span class="grad">Pay only to unlock.</span></h1>
-    <p class="lead">No subscription. 1 credit = 1 full contract unlock.</p>
+    <h1 class="h2">Scan free. <span class="grad">Go Pro when contracts get real.</span></h1>
+    <p class="lead">One simple Pro plan unlocks every rewrite, Scope Guard, Payment Chaser and PDF reports.</p>
+    {#if $isPro}<p class="ok" style="display:inline-block">You are Pro until {fmtDate($profile.pro_until)}. Paying again adds more time.</p>{/if}
   </div>
 
-  <div class="tier narrow" style="margin-left:auto;margin-right:auto">
+  <div class="tier">
     <div class="card">
-      <b>Free scan</b>
+      <b>Free Plan</b>
       <div class="price num">₹0</div>
-      <ul class="feat">
-        <li>Overall risk score (0-100)</li>
-        <li>Flags by category and severity</li>
-        <li>Exact clause quotes with redline highlights</li>
-        <li>Plain-English explanation of each risk</li>
-      </ul>
+      <ul class="feat">{#each FREE_FEATURES as f}<li>{f}</li>{/each}</ul>
+      <p class="muted small" style="margin:0">Free works on 1 device at a time.</p>
     </div>
+
     <div class="card iri">
-      <b>Full unlock</b>
-      <div class="price num">from ₹49</div>
-      <ul class="feat">
-        <li>Everything in the free scan</li>
-        <li>Suggested safer rewrite for every clause</li>
-        <li>Counter-proposal emails, ready to send</li>
-        <li>PDF report export</li>
-      </ul>
+      <div class="row between" style="margin-bottom:6px"><b>Pro Subscription</b><span class="badge low"><i class="dot"></i>Save 33% yearly</span></div>
+      <div class="seg" role="group" aria-label="Billing period">
+        <button class:on={billing === "pro_month"} on:click={() => (billing = "pro_month")}>Monthly</button>
+        <button class:on={billing === "pro_year"} on:click={() => (billing = "pro_year")}>Yearly</button>
+      </div>
+      <div class="price num">₹{plan.price.toLocaleString("en-IN")}<span class="muted small"> / {plan.per}</span></div>
+      <p class="muted small" style="margin:0 0 4px">{plan.per === "year" ? "About ₹" + Math.round(plan.price / 12) + " per month. Save 33% versus monthly." : "₹499 per month."} Each payment adds {plan.days} days of Pro.</p>
+      <ul class="feat">{#each PRO_FEATURES as f}<li>{f}</li>{/each}</ul>
+      <button class="btn primary lg block" on:click={() => openPay(plan.id)}>{$isPro ? "Extend Pro" : "Upgrade with UPI"} ⚡</button>
     </div>
   </div>
+  <p class="muted small center" style="margin-top:14px">Pay by UPI. Each verified payment adds time to your Pro plan. Automatic renewal is not enabled yet, so you renew by paying again before your Pro time ends.</p>
 
-  <div class="packs">
-    {#each PACKS as p}
-      <div class="pack" class:popular={p.popular}>
-        {#if p.popular}<span class="ribbon">Most popular</span>{/if}
-        <div style="font-size:1.7rem">{p.icon}</div>
-        <b>{p.name}</b>
-        <div class="price num">₹{p.price}</div>
-        <p class="muted small">{p.credits} credit{p.credits === 1 ? "" : "s"} • ₹{perContract(p)} per contract</p>
-        <ul class="feat">{#each p.features as f}<li>{f}</li>{/each}</ul>
-        <button class="btn primary block" on:click={() => openPay(p.id)}>Tap to Pay with UPI ⚡</button>
-      </div>
-    {/each}
-  </div>
-
-  <h2 class="h2 center" style="margin-top:48px">How UPI payment works</h2>
+  <h2 class="h2 center" style="margin-top:44px">How UPI payment works</h2>
   <div class="grid3">
     {#each STEPS as s}
       <div class="card" style="margin-top:0">

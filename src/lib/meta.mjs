@@ -1,5 +1,6 @@
 export const SITE = "https://clauseradar.online";
 export const BRAND = "ClauseRadar";
+// Shown on the Privacy and Terms pages. Change it if this mailbox does not exist.
 export const CONTACT_EMAIL = "support@clauseradar.online";
 export const OG_IMAGE = SITE + "/og.png";
 

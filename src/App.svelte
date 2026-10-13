@@ -13,6 +13,8 @@
   import Radar from "./pages/Radar.svelte";
   import Vault from "./pages/Vault.svelte";
   import Account from "./pages/Account.svelte";
+  import ScopeGuard from "./pages/ScopeGuard.svelte";
+  import Chaser from "./pages/Chaser.svelte";
 
   onMount(function () {
     return initApp();
@@ -28,6 +30,10 @@
     <Sample />
   {:else if $route === "/dashboard"}
     <Dashboard />
+  {:else if $route === "/scope-guard"}
+    <ScopeGuard />
+  {:else if $route === "/chaser"}
+    <Chaser />
   {:else if $route === "/pricing"}
     <Pricing />
   {:else if $route === "/privacy"}
