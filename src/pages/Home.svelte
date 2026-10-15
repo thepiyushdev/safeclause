@@ -43,7 +43,7 @@
     <div style="font-size:1.8rem" aria-hidden="true">🔒</div>
     <div>
       <b>Zero contract training.</b>
-      <p>We do not store or use your agreements to train models. Scans are ephemeral. Contract text is processed by third-party AI providers under their API terms.</p>
+      <p>We never use your agreements to train models, and scans are not stored by default. If you opt in to Contract Memory, we save only the terms and short clause excerpts you review. Contract text is processed by third-party AI providers under their API terms.</p>
     </div>
   </div>
 </section>

@@ -1,6 +1,6 @@
 <script>
-  import { sb, user, credits, authModal, payModal, showRecovery, authHeaders, readJson, copyToClipboard, UPI_ID } from "./app.js";
-  import { PACKS } from "./data.mjs";
+  import { sb, user, deviceState, authModal, payModal, showRecovery, authHeaders, readJson, copyToClipboard, refreshProfile, revokeDevice, syncDevice, markFreshLogin, UPI_ID, fmtDate } from "./app.js";
+  import { PLANS } from "./data.mjs";
 
   let email = "";
   let password = "";
@@ -15,8 +15,9 @@
   let payOk = false;
   let copied = false;
 
-  $: pack = PACKS.find(function (p) { return p.id === $payModal.packId; }) || PACKS[0];
-  $: upiLink = "upi://pay?pa=" + UPI_ID + "&pn=ClauseRadar&am=" + pack.price + "&cu=INR&tn=ClauseRadar_Credit";
+  $: otherActive = ($deviceState.devices || []).filter(function (d) { return !d.current && d.active; });
+  $: plan = PLANS.find(function (p) { return p.id === $payModal.planId; }) || PLANS[1];
+  $: upiLink = "upi://pay?pa=" + UPI_ID + "&pn=ClauseRadar&am=" + plan.price + "&cu=INR&tn=ClauseRadar_Pro";
 
   function closeAuth() {
     authModal.update(function (m) { return Object.assign({}, m, { open: false }); });
@@ -26,12 +27,17 @@
     authModal.update(function (m) { return Object.assign({}, m, { mode: mode }); });
     authMsg = "";
   }
+  function openPayFromDevice() {
+    deviceState.update(function (d) { return Object.assign({}, d, { blocked: false }); });
+    payModal.set({ open: true, planId: "pro_year" });
+  }
+
   function closePay() {
     payModal.update(function (m) { return Object.assign({}, m, { open: false }); });
     payMsg = "";
   }
-  function pickPack(id) {
-    payModal.update(function (m) { return Object.assign({}, m, { packId: id }); });
+  function pickPlan(id) {
+    payModal.update(function (m) { return Object.assign({}, m, { planId: id }); });
   }
 
   async function submitAuth(e) {
@@ -55,6 +61,7 @@
         const r = await sb.auth.signInWithPassword({ email: email.trim(), password: password });
         if (r.error) throw r.error;
         password = "";
+        markFreshLogin();
         closeAuth();
       }
     } catch (err) {
@@ -69,6 +76,7 @@
     authBusy = true;
     authMsg = "";
     authOk = false;
+    markFreshLogin();
     try { window.sessionStorage.setItem("cr_return", window.location.pathname); } catch (e) {}
     const r = await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
     if (r.error) {
@@ -133,13 +141,13 @@
       const r = await fetch("/api/verify-payment", {
         method: "POST",
         headers: await authHeaders(),
-        body: JSON.stringify({ image: b64, mime: "image/jpeg", pack: pack.id }),
+        body: JSON.stringify({ image: b64, mime: "image/jpeg", plan: plan.id }),
       });
       const data = await readJson(r);
       if (!r.ok || !data.success) throw new Error(data.error || "Verification failed.");
-      credits.set(data.credits);
+      if ($user) await refreshProfile($user.id);
       payOk = true;
-      payMsg = "✅ Payment verified! " + data.creditsAdded + " credit(s) added.";
+      payMsg = "✅ Payment verified! Pro is active until " + fmtDate(data.pro_until) + ".";
       shot = null;
       if (shotInput) shotInput.value = "";
     } catch (err) {
@@ -152,7 +160,7 @@
 </script>
 
 {#if $authModal.open}
-  <div class="backdrop" on:click|self={closeAuth}>
+  <div class="backdrop" role="presentation" on:click|self={closeAuth} on:keydown={(e) => e.key === "Escape" && closeAuth()}>
     <div class="modal" role="dialog" aria-modal="true">
       <button class="x" aria-label="Close" on:click={closeAuth}>✕</button>
       <h2>{$authModal.mode === "signup" ? "Create your account" : $authModal.mode === "forgot" ? "Reset password" : "Welcome back"}</h2>
@@ -185,7 +193,7 @@
 {/if}
 
 {#if $showRecovery}
-  <div class="backdrop">
+  <div class="backdrop" role="presentation">
     <div class="modal" role="dialog" aria-modal="true">
       <h2>Set a new password</h2>
       <form on:submit={saveNewPassword}>
@@ -198,18 +206,18 @@
 {/if}
 
 {#if $payModal.open}
-  <div class="backdrop" on:click|self={closePay}>
+  <div class="backdrop" role="presentation" on:click|self={closePay} on:keydown={(e) => e.key === "Escape" && closePay()}>
     <div class="modal" role="dialog" aria-modal="true">
       <button class="x" aria-label="Close" on:click={closePay}>✕</button>
-      <h2>Buy credits</h2>
+      <h2>Upgrade to Pro</h2>
       <div class="chips">
-        {#each PACKS as p}
-          <button class:on={$payModal.packId === p.id} on:click={() => pickPack(p.id)}>{p.credits} credit{p.credits === 1 ? "" : "s"} • ₹{p.price}</button>
+        {#each PLANS as p}
+          <button class:on={$payModal.planId === p.id} on:click={() => pickPlan(p.id)}>{p.per === "year" ? "Yearly" : "Monthly"} • ₹{p.price.toLocaleString("en-IN")}{p.badge ? " (" + p.badge + ")" : ""}</button>
         {/each}
       </div>
-      <p class="muted small">1 credit = 1 full contract unlock (all safer rewrites + counter-proposal emails + PDF report).</p>
+      <p class="muted small">Pro: every rewrite unlocked, unlimited Scope Guard and Payment Chaser, PDF reports and up to 3 devices. This payment adds {plan.days} days of Pro. Renewal is manual.</p>
 
-      <h3 class="sub">Step 1: Pay ₹{pack.price}</h3>
+      <h3 class="sub">Step 1: Pay ₹{plan.price.toLocaleString("en-IN")}</h3>
       <a class="btn primary block upi" href={upiLink}>Tap to Pay with UPI ⚡</a>
       <p class="muted small">Opens GPay, PhonePe or Paytm on your phone. UPI ID: <b>{UPI_ID}</b>
         <button class="linkbtn" on:click={copyUpi}>{copied ? "Copied ✓" : "Copy"}</button>
@@ -218,9 +226,28 @@
       <h3 class="sub">Step 2: Upload the payment screenshot</h3>
       <input type="file" accept="image/*" on:change={onShot} bind:this={shotInput} />
       <button class="btn block" on:click={verifyPayment} disabled={payBusy}>
-        {payBusy ? "AI is verifying..." : "Verify payment & add credits"}
+        {payBusy ? "AI is verifying..." : "Verify payment & activate Pro"}
       </button>
       {#if payMsg}<div class={payOk ? "ok" : "error"}>{payMsg}</div>{/if}
+    </div>
+  </div>
+{/if}
+
+{#if $user && $deviceState.blocked}
+  <div class="backdrop" role="presentation">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h2>Device limit reached</h2>
+      <p class="muted small">{$deviceState.plan === "pro" ? "Pro allows up to 3 devices at the same time." : "The Free plan allows 1 device at a time. Pro allows up to 3."} Sign out one of these devices to continue on this one.</p>
+      {#each otherActive as d (d.device_id)}
+        <div class="dev">
+          <div style="min-width:0"><b>{d.label}</b><div class="muted small">Active now</div></div>
+          <button class="btn sm" on:click={() => revokeDevice(d.device_id)}>Sign out</button>
+        </div>
+      {/each}
+      <div class="row" style="margin-top:12px">
+        {#if $deviceState.plan !== "pro"}<button class="btn primary mfull" on:click={openPayFromDevice}>Upgrade to Pro ⚡</button>{/if}
+        <button class="btn mfull" on:click={() => syncDevice("register")}>Try again</button>
+      </div>
     </div>
   </div>
 {/if}

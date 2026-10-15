@@ -1,11 +1,11 @@
 import crypto from "node:crypto";
-// api/verify-payment.js - UPI screenshot verification with Gemini
+// api/verify-payment.js - UPI screenshot verification with Gemini. Each verified payment adds Pro time.
 
 const SB_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const RECEIVER_ID = "8796021247@fam";
 const RECEIVER_DIGITS = "8796021247";
-const PACKS = { 1: { amount: 49, credits: 1 }, 3: { amount: 129, credits: 3 }, 8: { amount: 299, credits: 8 } };
+const PLANS = { pro_month: { amount: 499, days: 30 }, pro_year: { amount: 3999, days: 365 } };
 const MAX_B64 = 3000000;
 const MODELS = Array.from(
   new Set([process.env.GEMINI_MODEL, "gemini-3.1-flash-lite", "gemini-3-flash-preview", "gemini-flash-latest", "gemini-2.5-flash"].filter(Boolean))
@@ -101,6 +101,7 @@ function judge(info, pack) {
   const okReceiver =
     rid.indexOf(RECEIVER_DIGITS) !== -1 ||
     rname.indexOf("safeclause") !== -1 ||
+    rname.indexOf("clauseradar") !== -1 ||
     (hint && rname.indexOf(hint) !== -1);
   if (!okReceiver) return "Receiver does not match " + RECEIVER_ID + ". Please pay to the correct UPI ID.";
   const txn = String(info.transaction_id || "").replace(/\s+/g, "");
@@ -128,8 +129,9 @@ async function handler(req, res) {
     const user = await getUser(req);
     if (!user) return res.status(401).json({ success: false, error: "Please log in first." });
 
-    const pack = PACKS[Number(body.pack)];
-    if (!pack) return res.status(400).json({ success: false, error: "Unknown credit pack." });
+    const planId = String(body.plan || "");
+    const pack = PLANS[planId];
+    if (!pack) return res.status(400).json({ success: false, error: "Unknown plan." });
     const b64 = String(body.image || "");
     const mime = ["image/jpeg", "image/png", "image/webp"].indexOf(body.mime) !== -1 ? body.mime : "image/jpeg";
     if (b64.length < 1000) return res.status(400).json({ success: false, error: "Screenshot is missing or too small." });
@@ -153,13 +155,13 @@ async function handler(req, res) {
 
     const txn = String(info.transaction_id).replace(/\s+/g, "").toUpperCase();
     const hash = crypto.createHash("sha256").update(b64).digest("hex");
-    const total = await rpc("redeem_payment", {
-      p_user: user.id, p_txn: txn, p_hash: hash, p_amount: pack.amount, p_credits: pack.credits,
+    const until = await rpc("redeem_pro", {
+      p_user: user.id, p_txn: txn, p_hash: hash, p_amount: pack.amount, p_days: pack.days, p_plan: planId,
     });
-    if (typeof total !== "number" || total < 0) {
+    if (typeof until !== "string") {
       return res.status(409).json({ success: false, error: "This payment / transaction ID was already used." });
     }
-    return res.status(200).json({ success: true, creditsAdded: pack.credits, credits: total });
+    return res.status(200).json({ success: true, plan: "pro", pro_until: until, days: pack.days });
   } catch (e) {
     return res.status(500).json({ success: false, error: (e && e.message) || "Verification failed." });
   }

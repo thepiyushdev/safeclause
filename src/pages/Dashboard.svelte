@@ -1,9 +1,10 @@
 <script>
   import { onDestroy } from "svelte";
-  import { user, credits, MAX_CHARS, authHeaders, readJson, openAuth, openPay, deriveScore, catLabel, fmt } from "../lib/app.js";
+  import { user, credits, isPro, profile, MAX_CHARS, authHeaders, readJson, openAuth, openPay, deriveScore, catLabel, fmt, refreshProfile } from "../lib/app.js";
   import { SAMPLE_CONTRACTS } from "../lib/data.mjs";
   import { openReport } from "../lib/report.js";
   import ClauseCard from "../lib/ClauseCard.svelte";
+  import MemorySave from "../lib/MemorySave.svelte";
   import RiskBadge from "../lib/RiskBadge.svelte";
   import RiskGauge from "../lib/RiskGauge.svelte";
   import DisclaimerBanner from "../lib/DisclaimerBanner.svelte";
@@ -33,7 +34,7 @@
   $: allUnlocked = flagged.length > 0 && flagged.every(function (c, i) { return !!unlockedData[i]; });
   $: cats = ["All"].concat(flagged.map(function (c) { return catLabel(c.category); }).filter(function (v, i, a) { return a.indexOf(v) === i; }));
   $: shown = flagged.map(function (c, i) { return { c: c, i: i }; }).filter(function (x) { return cat === "All" || catLabel(x.c.category) === cat; });
-  $: unlockLabel = $credits < 1 ? "Unlock All Clauses for ₹49 (Get 1 Credit) ⚡" : "Use 1 Credit to Unlock All Clauses (Balance: " + $credits + ") ⚡";
+  $: unlockLabel = $isPro ? "Unlock All Clauses (Pro) ⚡" : $credits >= 1 ? "Use 1 Credit to Unlock All Clauses (Balance: " + $credits + ") ⚡" : "Upgrade to Pro to Unlock All Clauses ⚡";
 
   onDestroy(function () { if (timer) clearInterval(timer); });
 
@@ -197,11 +198,11 @@
     }
   }
 
-  // 1 credit unlocks EVERY flagged clause of this audit in a single request.
+  // Pro (or 1 legacy credit) unlocks EVERY flagged clause of this audit in a single request.
   async function unlockAll() {
     error = "";
-    if (!$user) { openAuth("login", "Log in to unlock. Your credits are saved to your account."); return; }
-    if ($credits < 1) { openPay(1); return; }
+    if (!$user) { openAuth("login", "Log in to unlock. Pro and your account are saved across devices."); return; }
+    if (!$isPro && $credits < 1) { openPay("pro_year"); return; }
     if (flagged.length === 0 || unlocking) return;
     unlocking = true;
     unlockError = "";
@@ -212,13 +213,14 @@
       const r = await fetch("/api/unlock", { method: "POST", headers: headers, body: JSON.stringify({ tokens: tokens }) });
       const data = await readJson(r);
       if (r.status === 401) throw new Error("Session expired. Please log in again.");
+      if (data && data.code === "UPGRADE") { openPay("pro_year"); }
       if (!r.ok || !data.success || !Array.isArray(data.unlocked)) {
         throw new Error(data.error || "Unlock failed (HTTP " + r.status + ").");
       }
       const map = {};
       data.unlocked.forEach(function (u) { map[u.index] = u; });
       unlockedData = map;
-      credits.set(data.credits);
+      if ($user) refreshProfile($user.id);
     } catch (err) {
       let msg = err && err.message ? err.message : "Unlock failed.";
       if (err instanceof TypeError) msg = "Network error. Check your connection and try again.";
@@ -229,6 +231,7 @@
   }
 
   function exportPdf() {
+    if (!$isPro) { openPay("pro_year"); error = "PDF report export is a Pro feature."; return; }
     const ok = openReport({ result: result, unlockedData: unlockedData, jur: jur, score: score });
     if (!ok) error = "Allow pop-ups for this site to download the PDF report.";
   }
@@ -296,18 +299,22 @@
             <span class="muted small num">{flagged.length} flagged • {highCount} high</span>
           </div>
           <p class="pre" style="margin:0 0 10px">{fmt(result.executive_summary)}</p>
-          <button class="btn sm mfull" on:click={exportPdf}>📄 {allUnlocked ? "Download full PDF report" : "Download PDF preview"}</button>
+          <button class="btn sm mfull" on:click={exportPdf}>📄 {$isPro ? "Download PDF report" : "PDF report (Pro) ⚡"}</button>
         </div>
       </div>
     </section>
 
     {#if flagged.length > 0 && !allUnlocked}
       <section class="card" style="border-color:#c7d2fe;background:#f5f7ff">
-        <b>Unlock all {flagged.length} safer rewrites with one credit</b>
-        <p class="muted small" style="margin:4px 0 12px">Includes every counter-proposal email and the full PDF report.</p>
+        <b>Unlock all {flagged.length} safer rewrites</b>
+        <p class="muted small" style="margin:4px 0 12px">Includes every counter-proposal email. Pro also adds PDF reports, Scope Guard and Payment Chaser.</p>
         <button class="btn primary block" on:click={unlockAll} disabled={unlocking}>{unlocking ? "Unlocking all clauses..." : unlockLabel}</button>
         {#if unlockError}<div class="error" role="alert">⚠️ {unlockError}</div>{/if}
       </section>
+    {/if}
+
+    {#if flagged.length > 0}
+      <MemorySave text={text} jur={jur} />
     {/if}
 
     {#if cats.length > 2}

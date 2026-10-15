@@ -148,7 +148,7 @@
         {#if result.change_order_text}
           <div class="rw-h" style="margin-top:6px">
             <span class="rw-tag">Change-order quote</span>
-            <button class="btn sm" on:click={() => copy("co", result.change_order_text)}>{copied === "co" ? "Copy change order" : "Copy change order"}</button>
+            <button class="btn sm" on:click={() => copy("co", result.change_order_text)}>{copied === "co" ? "Copied ✓" : "Copy change order"}</button>
           </div>
           <div class="mail">{fmt(result.change_order_text)}</div>
           {#if result.estimated_hours}
