@@ -15,6 +15,7 @@
       <a class="btn lg" href="/sample" on:click={(e) => link(e, "/sample")}>View Sample Audit Report</a>
     </div>
     <p class="small muted">Free scan • Pay only to unlock rewrites • PDF, DOCX or pasted text</p>
+      <p style="margin-top:12px"><a href="/refer" style="display:inline-flex;align-items:center;gap:6px;padding:7px 15px;border-radius:999px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.35);color:#059669;font-weight:700;font-size:13px;text-decoration:none">💸 Refer friends & earn 30% cash via UPI →</a></p>
   </div>
 </section>
 
