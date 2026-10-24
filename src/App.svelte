@@ -26,7 +26,11 @@
 <Nav />
 
 <main>
-  {#if $route === "/"}
+  {#if $route === "/refer"}
+    <Refer />
+  {:else if $route === "/admin"}
+    <Admin />
+  {:else if $route === "/"}
     <Home />
   {:else if $route === "/sample"}
     <Sample />
