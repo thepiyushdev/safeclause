@@ -161,6 +161,33 @@ async function handler(req, res) {
     if (typeof until !== "string") {
       return res.status(409).json({ success: false, error: "This payment / transaction ID was already used." });
     }
+    
+    // Auto-credit 30% affiliate commission if buyer was referred
+    try {
+      const refCode = req.body?.ref_code || "";
+      if (refCode && typeof supabase !== "undefined" && supabase) {
+        const cleanRef = String(refCode).trim().toUpperCase();
+        const { data: refWallet } = await supabase.from("affiliate_wallets").select("*").eq("ref_code", cleanRef).maybeSingle();
+        if (refWallet) {
+          const saleAmt = Number(req.body?.amount) || (req.body?.plan === "yearly" ? 3999 : 499);
+          const comm = Math.round(saleAmt * 0.30);
+          await supabase.from("referrals").insert({
+            referrer_code: cleanRef,
+            buyer_email: req.body?.email || "Pro Member",
+            plan: saleAmt > 1000 ? "Yearly Pro" : "Monthly Pro",
+            sale_amount: saleAmt,
+            commission_amount: comm,
+            status: "credited"
+          });
+          await supabase.from("affiliate_wallets").update({
+            wallet_balance: Number(refWallet.wallet_balance || 0) + comm,
+            total_earned: Number(refWallet.total_earned || 0) + comm,
+            total_referrals: Number(refWallet.total_referrals || 0) + 1
+          }).eq("user_id", refWallet.user_id);
+        }
+      }
+    } catch (affErr) { console.warn("Affiliate hook skipped:", affErr.message); }
+
     return res.status(200).json({ success: true, plan: "pro", pro_until: until, days: pack.days });
   } catch (e) {
     return res.status(500).json({ success: false, error: (e && e.message) || "Verification failed." });

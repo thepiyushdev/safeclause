@@ -369,3 +369,15 @@ export async function scopeUsage() {
   const r = await sb.from("scope_checks").select("id", { count: "exact", head: true }).gte("created_at", start);
   return r.error ? null : r.count || 0;
 }
+
+
+// Capture ?ref=CODE affiliate parameter automatically
+if (typeof window !== "undefined") {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (ref && ref.trim()) {
+      localStorage.setItem("cr_ref", ref.trim().toUpperCase());
+    }
+  } catch (e) {}
+}

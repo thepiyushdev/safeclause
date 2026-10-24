@@ -1,0 +1,95 @@
+
+> safeclause@0.0.0 build
+> vite build && node scripts/prerender.mjs
+
+vite v8.3.2 building client environment for production...
+transforming...
+✓ 181 modules transformed.
+
+1:20:52 PM [vite-plugin-svelte] src/lib/Modals.svelte:155:2 Visible, non-interactive element `<div>` with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+153: 
+154: {#if $authModal.open}
+155:   <div class="backdrop" on:click|self={closeAuth}>
+             ^
+156:     <div class="modal" role="dialog" aria-modal="true">
+157:       <button class="x" aria-label="Close" on:click={closeAuth}>✕</button>
+1:20:52 PM [vite-plugin-svelte] src/lib/Modals.svelte:155:2 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+153: 
+154: {#if $authModal.open}
+155:   <div class="backdrop" on:click|self={closeAuth}>
+             ^
+156:     <div class="modal" role="dialog" aria-modal="true">
+157:       <button class="x" aria-label="Close" on:click={closeAuth}>✕</button>
+1:20:52 PM [vite-plugin-svelte] src/lib/Modals.svelte:201:2 Visible, non-interactive element `<div>` with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+199: 
+200: {#if $payModal.open}
+201:   <div class="backdrop" on:click|self={closePay}>
+             ^
+202:     <div class="modal" role="dialog" aria-modal="true">
+203:       <button class="x" aria-label="Close" on:click={closePay}>✕</button>
+1:20:52 PM [vite-plugin-svelte] src/lib/Modals.svelte:201:2 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+199: 
+200: {#if $payModal.open}
+201:   <div class="backdrop" on:click|self={closePay}>
+             ^
+202:     <div class="modal" role="dialog" aria-modal="true">
+203:       <button class="x" aria-label="Close" on:click={closePay}>✕</button>
+✗ Build failed in 1.99s
+error during build:
+Build failed with 3 errors:
+
+[31m[UNRESOLVED_IMPORT] [0mCould not resolve '../lib/memory.js' in src/pages/Account.svelte
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/pages/Account.svelte:27:8 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m27 │[0m [38;5;249m}[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m"../lib/memory.js"[38;5;249m;[0m
+ [38;5;240m   │[0m        ─────────┬────────  
+ [38;5;240m   │[0m                 ╰────────── Module not found.
+ [38;5;240m   │[0m 
+ [38;5;240m   │[0m [38;5;115mHelp[0m: 'src/pages/Account.svelte' is imported by the following path:
+ [38;5;240m   │[0m         - src/pages/Account.svelte
+ [38;5;240m   │[0m         - src/App.svelte
+ [38;5;240m   │[0m         - src/main.js
+ [38;5;240m   │[0m         - index.html
+[38;5;246m────╯[0m
+
+[31m[UNRESOLVED_IMPORT] [0mCould not resolve '../lib/memory.js' in src/pages/ScopeGuard.svelte
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/pages/ScopeGuard.svelte:17:67 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m17 │[0m [38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249m{[0m[38;5;249m [0m[38;5;249mp[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mj[0m[38;5;249me[0m[38;5;249mc[0m[38;5;249mt[0m[38;5;249ms[0m[38;5;249m,[0m[38;5;249m [0m[38;5;249ml[0m[38;5;249mo[0m[38;5;249ma[0m[38;5;249md[0m[38;5;249mP[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mj[0m[38;5;249me[0m[38;5;249mc[0m[38;5;249mt[0m[38;5;249ms[0m[38;5;249m,[0m[38;5;249m [0m[38;5;249mu[0m[38;5;249mp[0m[38;5;249md[0m[38;5;249ma[0m[38;5;249mt[0m[38;5;249me[0m[38;5;249mP[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mj[0m[38;5;249me[0m[38;5;249mc[0m[38;5;249mt[0m[38;5;249m,[0m[38;5;249m [0m[38;5;249ms[0m[38;5;249mc[0m[38;5;249mo[0m[38;5;249mp[0m[38;5;249me[0m[38;5;249mU[0m[38;5;249ms[0m[38;5;249ma[0m[38;5;249mg[0m[38;5;249me[0m[38;5;249m [0m[38;5;249m}[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m"../lib/memory.js"[38;5;249m;[0m
+ [38;5;240m   │[0m                                                                   ─────────┬────────  
+ [38;5;240m   │[0m                                                                            ╰────────── Module not found.
+ [38;5;240m   │[0m 
+ [38;5;240m   │[0m [38;5;115mHelp[0m: 'src/pages/ScopeGuard.svelte' is imported by the following path:
+ [38;5;240m   │[0m         - src/pages/ScopeGuard.svelte
+ [38;5;240m   │[0m         - src/App.svelte
+ [38;5;240m   │[0m         - src/main.js
+ [38;5;240m   │[0m         - index.html
+[38;5;246m────╯[0m
+
+[31m[UNRESOLVED_IMPORT] [0mCould not resolve '../lib/memory.js' in src/pages/Chaser.svelte
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/pages/Chaser.svelte:14:8 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m14 │[0m [38;5;249m}[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m"../lib/memory.js"[38;5;249m;[0m
+ [38;5;240m   │[0m        ─────────┬────────  
+ [38;5;240m   │[0m                 ╰────────── Module not found.
+ [38;5;240m   │[0m 
+ [38;5;240m   │[0m [38;5;115mHelp[0m: 'src/pages/Chaser.svelte' is imported by the following path:
+ [38;5;240m   │[0m         - src/pages/Chaser.svelte
+ [38;5;240m   │[0m         - src/App.svelte
+ [38;5;240m   │[0m         - src/main.js
+ [38;5;240m   │[0m         - index.html
+[38;5;246m────╯[0m
+
+    at aggregateBindingErrorsIntoJsError (file:///data/data/com.termux/files/home/safeclause/node_modules/rolldown/dist/shared/error-Bj1xBdEY.mjs:49:18)
+    at unwrapBindingResult (file:///data/data/com.termux/files/home/safeclause/node_modules/rolldown/dist/shared/error-Bj1xBdEY.mjs:19:128)
+    at #build (file:///data/data/com.termux/files/home/safeclause/node_modules/rolldown/dist/shared/rolldown-jmAeXo_f.mjs:133:34)
+    at async buildEnvironment (file:///data/data/com.termux/files/home/safeclause/node_modules/vite/dist/node/chunks/node.js:34490:66)
+    at async Object.build (file:///data/data/com.termux/files/home/safeclause/node_modules/vite/dist/node/chunks/node.js:34911:19)
+    at async Object.buildApp (file:///data/data/com.termux/files/home/safeclause/node_modules/vite/dist/node/chunks/node.js:34908:153)
+    at async CAC.<anonymous> (file:///data/data/com.termux/files/home/safeclause/node_modules/vite/dist/node/cli.js:780:3) {
+  errors: [Getter/Setter]
+}

@@ -38,6 +38,7 @@
 
     <div class="nav-right">
       <a class="credit" class:pro={$isPro} href="/pricing" title={$isPro ? "Pro plan" : "Free plan. Tap to upgrade"} on:click={(e) => nav(e, "/pricing")}><span class="pl-pre">Plan: </span><b>{$isPro ? "Pro ⚡" : "Free"}</b></a>
+      <a href="/refer" on:click|preventDefault={() => go("/refer")} style="color:#34d399;font-weight:700">Earn 30% 💸</a>
       <div class="nav-desktop">
         {#if !$isPro}<button class="btn sm primary" on:click={() => openPay("pro_year")}>Upgrade</button>{/if}
         {#if $user}

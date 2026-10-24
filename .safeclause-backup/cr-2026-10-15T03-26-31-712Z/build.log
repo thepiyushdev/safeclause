@@ -1,0 +1,16 @@
+
+> safeclause@0.0.0 build
+> vite build && node scripts/prerender.mjs
+
+vite v8.3.2 building client environment for production...
+transforming...
+✓ 182 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   8.75 kB │ gzip:   2.95 kB
+dist/assets/index-BgQazz62.css   26.06 kB │ gzip:   6.63 kB
+dist/assets/index-B7sY1XB-.js   378.80 kB │ gzip: 111.87 kB
+
+✓ built in 2.33s
+prerender: wrote 11 pages, sitemap.xml and robots.txt
+

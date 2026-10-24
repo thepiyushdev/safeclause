@@ -1,4 +1,6 @@
 <script>
+  import Refer from "./pages/Refer.svelte";
+  import Admin from "./pages/Admin.svelte";
   import "./lib/styles.css";
   import { onMount } from "svelte";
   import { route, initApp, link } from "./lib/app.js";
