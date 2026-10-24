@@ -36,6 +36,10 @@
     <ScopeGuard />
   {:else if $route === "/chaser"}
     <Chaser />
+  {:else if $route === "/refer"}
+    <Refer />
+  {:else if $route === "/admin"}
+    <Admin />
   {:else if $route === "/pricing"}
     <Pricing />
   {:else if $route === "/privacy"}
@@ -44,10 +48,6 @@
     <Legal kind="terms" />
   {:else if $route === "/radar"}
     <Radar />
-  {:else if $route === "/refer"}
-    <Refer />
-  {:else if $route === "/admin"}
-    <Admin />
   {:else if $route === "/vault"}
     <Vault />
   {:else if $route === "/account"}
