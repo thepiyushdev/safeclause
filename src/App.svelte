@@ -26,11 +26,7 @@
 <Nav />
 
 <main>
-  {#if $route === "/refer"}
-    <Refer />
-  {:else if $route === "/admin"}
-    <Admin />
-  {:else if $route === "/"}
+  {#if $route === "/"}
     <Home />
   {:else if $route === "/sample"}
     <Sample />
@@ -48,6 +44,10 @@
     <Legal kind="terms" />
   {:else if $route === "/radar"}
     <Radar />
+  {:else if $route === "/refer"}
+    <Refer />
+  {:else if $route === "/admin"}
+    <Admin />
   {:else if $route === "/vault"}
     <Vault />
   {:else if $route === "/account"}

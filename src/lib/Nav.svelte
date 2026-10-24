@@ -26,7 +26,7 @@
 <header class="nav">
   <div class="nav-in">
     <a class="brand" href="/" on:click={(e) => nav(e, "/")}>
-      <svg width="30" height="30" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;border-radius:8px;box-shadow:0 2px 8px rgba(79,70,229,0.25)">
+      <svg width="26" height="26" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;border-radius:7px">
   <defs>
     <linearGradient id="crBg" x1="0" y1="512" x2="512" y2="0" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#4338ca"/>
@@ -57,7 +57,6 @@
 
     <div class="nav-right">
       <a class="credit" class:pro={$isPro} href="/pricing" title={$isPro ? "Pro plan" : "Free plan. Tap to upgrade"} on:click={(e) => nav(e, "/pricing")}><span class="pl-pre">Plan: </span><b>{$isPro ? "Pro ⚡" : "Free"}</b></a>
-      <a href="/refer" class:active={$route === "/refer" || (typeof path !== "undefined" && path === "/refer")} on:click|preventDefault={() => { if (typeof go === "function") go("/refer"); else { window.history.pushState({}, "", "/refer"); window.dispatchEvent(new PopStateEvent("popstate")); } }}>Refer & Earn 30%</a>
       <div class="nav-desktop">
         {#if !$isPro}<button class="btn sm primary" on:click={() => openPay("pro_year")}>Upgrade</button>{/if}
         {#if $user}
