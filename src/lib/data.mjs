@@ -3,9 +3,9 @@ export const PLANS = [
   { id: "pro_year", name: "Pro Yearly", price: 3999, days: 365, per: "year", popular: true, badge: "Save 33%" },
 ];
 
-// Legacy alias so any older import of PACKS keeps building. The UI no longer sells credit packs.
+// Compatibility alias so any older import of PACKS keeps building. It mirrors the Pro plans; nothing sells per-contract packs.
 export const PACKS = PLANS.map(function (p) {
-  return { id: p.id, credits: 0, price: p.price, icon: "⚡", name: p.name, popular: !!p.popular, features: [] };
+  return { id: p.id, price: p.price, icon: "⚡", name: p.name, popular: !!p.popular, features: [] };
 });
 
 export const FREE_FEATURES = [

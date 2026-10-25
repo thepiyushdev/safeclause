@@ -1,5 +1,5 @@
 <script>
-  import { sb, user, isPro, profile, deviceState, openAuth, openPay, refreshProfile, syncDevice, revokeDevice, signOutThisDevice, fmtDate, projects, invoices, loadProjects, loadInvoices, deleteProject, scopeUsage } from "../lib/app.js";
+  import { sb, user, isPro, profile, deviceState, openAuth, openPay, refreshProfile, syncDevice, revokeDevice, signOutThisDevice, fmtDate, projects, invoices, loadProjects, loadInvoices, deleteProject, scopeUsage, memoryError } from "../lib/app.js";
 
   let used = null;
   let msg = "";
@@ -45,12 +45,11 @@
         </div>
       </div>
       {#if $isPro}
-        <p style="margin:0 0 4px">Pro is active until <b>{fmtDate($profile.pro_until)}</b>.</p>
+        <p style="margin:0 0 4px">Pro ({$profile.pro_plan === "pro_year" ? "Yearly" : "Monthly"}) is active until <b>{fmtDate($profile.pro_until)}</b>.</p>
         <p class="muted small" style="margin:0 0 12px">Renewal is manual: pay again before this date to extend. Automatic renewal is not enabled yet.</p>
       {:else}
         <p class="muted" style="margin:0 0 12px">You are on the Free plan. Go Pro to unlock every rewrite, unlimited Scope Guard and Payment Chaser, PDF exports and 3 devices.</p>
       {/if}
-      {#if $profile.credits > 0}<p class="muted small" style="margin:0 0 12px">Legacy credits: <b class="num">{$profile.credits}</b> (still usable to unlock audits on the Free plan).</p>{/if}
       <div class="row">
         <button class="btn primary mfull" on:click={() => openPay("pro_year")}>{$isPro ? "Extend Pro" : "Upgrade to Pro"} ⚡</button>
         <button class="btn mfull" on:click={() => { refreshProfile($user.id); syncDevice("list"); }}>Refresh</button>
@@ -64,6 +63,7 @@
         <li><span>Open invoices</span><b class="num">{openInv}{$isPro ? "" : " of 1"}</b></li>
         <li><span>Scope Guard checks this month</span><b class="num">{used == null ? "-" : used}{$isPro ? "" : " of 3"}</b></li>
       </ul>
+      {#if $memoryError}<div class="error" role="alert" style="margin:0 0 10px">⚠️ {$memoryError}</div>{/if}
       {#each $projects as p}
         <div class="row between" style="margin:0 0 6px">
           <span style="min-width:0;overflow-wrap:anywhere">{p.name}{p.client_name ? " – " + p.client_name : ""}</span>

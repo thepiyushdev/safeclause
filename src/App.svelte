@@ -1,7 +1,5 @@
 <script>
-  import Refer from "./pages/Refer.svelte";
-  import Admin from "./pages/Admin.svelte";
-      import "./lib/styles.css";
+  import "./lib/styles.css";
   import { onMount } from "svelte";
   import { route, initApp, link } from "./lib/app.js";
   import Nav from "./lib/Nav.svelte";
@@ -17,6 +15,8 @@
   import Account from "./pages/Account.svelte";
   import ScopeGuard from "./pages/ScopeGuard.svelte";
   import Chaser from "./pages/Chaser.svelte";
+  import Refer from "./pages/Refer.svelte";
+  import Admin from "./pages/Admin.svelte";
 
   onMount(function () {
     return initApp();

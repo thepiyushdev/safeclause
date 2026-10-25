@@ -96,6 +96,9 @@ export function shellHtml(p) {
   if (p === "/chaser") {
     return wrap(h1("Payment Chaser") + para("The contract says Net-30 and the client is on day 41. Track each invoice against your contract's payment terms and get an escalation sequence: a friendly reminder, a firm reminder quoting the late-fee clause, and a formal demand notice.") + "<p>" + cta("/dashboard", "Scan a contract first", true) + "</p>");
   }
+  if (p === "/refer") {
+    return wrap(h1("Earn 30% on every ClauseRadar sale") + para("Refer friends to ClauseRadar Pro and earn 30% cash on every verified payment (₹150 per month or ₹1,200 per year per user), paid to your UPI. Get your personal link, track your earnings and request payouts.") + "<p>" + cta("/refer", "Get your referral link", true) + "</p>");
+  }
   if (p === "/radar") {
     return wrap(h1("Freelance contract risk calculator") + para("Enter your project fee, payment terms, liability, IP transfer and revision limits to estimate what late payment, unpaid revisions and uncapped liability could cost you."));
   }
@@ -110,5 +113,5 @@ export function shellHtml(p) {
     L.sections.forEach(function (s) { h += sec(s.h, s.p); });
     return wrap(h);
   }
-  return wrap(h1("ClauseRadar account") + para("Sign in to see your credit balance."));
+  return wrap(h1("ClauseRadar account") + para("Sign in to see your plan and devices."));
 }

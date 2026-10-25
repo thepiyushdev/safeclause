@@ -1,5 +1,5 @@
 <script>
-  import { sb, user, deviceState, authModal, payModal, showRecovery, authHeaders, readJson, copyToClipboard, refreshProfile, revokeDevice, syncDevice, markFreshLogin, UPI_ID, fmtDate } from "./app.js";
+  import { sb, user, deviceState, authModal, payModal, showRecovery, authHeaders, readJson, copyToClipboard, refreshProfile, revokeDevice, syncDevice, markFreshLogin, getRef, UPI_ID, fmtDate } from "./app.js";
   import { PLANS } from "./data.mjs";
 
   let email = "";
@@ -141,7 +141,7 @@
       const r = await fetch("/api/verify-payment", {
         method: "POST",
         headers: await authHeaders(),
-        body: JSON.stringify({ image: b64, mime: "image/jpeg", plan: plan.id }),
+        body: JSON.stringify({ image: b64, mime: "image/jpeg", plan: plan.id, ref: getRef() }),
       });
       const data = await readJson(r);
       if (!r.ok || !data.success) throw new Error(data.error || "Verification failed.");

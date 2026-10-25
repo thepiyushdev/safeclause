@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-// api/unlock.js - server-side paywall. Pro unlocks without limits; legacy credit holders spend 1 credit per audit.
+// api/unlock.js - server-side paywall. Only Pro accounts can unlock; Free accounts receive 402 UPGRADE.
 
 const SB_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -40,15 +40,10 @@ function readBody(req) {
 
 async function getProfile(userId) {
   try {
-    const rows = await sbFetch("profiles?id=eq." + enc(userId) + "&select=credits,pro_until");
+    const rows = await sbFetch("profiles?id=eq." + enc(userId) + "&select=pro_until");
     return rows && rows[0] ? rows[0] : null;
   } catch (e) {
-    try {
-      const rows2 = await sbFetch("profiles?id=eq." + enc(userId) + "&select=credits");
-      return rows2 && rows2[0] ? rows2[0] : null;
-    } catch (e2) {
-      return null;
-    }
+    return null;
   }
 }
 
@@ -145,24 +140,6 @@ function unseal(token) {
   }
 }
 
-// Legacy credits: read, then PATCH only if the balance is unchanged (compare-and-swap).
-async function spendOneCredit(userId) {
-  const id = enc(userId);
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const rows = await sbFetch("profiles?id=eq." + id + "&select=credits");
-    const current = rows && rows[0] ? Number(rows[0].credits) : NaN;
-    if (!isFinite(current)) return { ok: false, reason: "noprofile" };
-    if (current < 1) return { ok: false, reason: "nocredits" };
-    const updated = await sbFetch("profiles?id=eq." + id + "&credits=eq." + current, {
-      method: "PATCH",
-      headers: { Prefer: "return=representation" },
-      body: JSON.stringify({ credits: current - 1 }),
-    });
-    if (Array.isArray(updated) && updated.length === 1) return { ok: true, credits: current - 1 };
-  }
-  return { ok: false, reason: "busy" };
-}
-
 async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Use POST." });
   if (!SB_URL || !SB_SERVICE) {
@@ -176,12 +153,14 @@ async function handler(req, res) {
   try {
     const user = await getUser(req);
     if (!user) return res.status(401).json({ error: "Session expired. Please log in again." });
-    const profile = await getProfile(user.id);
-    const pro = proActive(profile);
+    const pro = proActive(await getProfile(user.id));
+    if (!pro) {
+      return res.status(402).json({ error: "Upgrade to Pro to unlock safer rewrites and counter-proposal emails.", code: "UPGRADE" });
+    }
     const gate = await deviceGate(user.id, req.headers["x-device-id"], pro);
     if (!gate.ok) return deviceFail(res, gate);
 
-    // Decrypt EVERYTHING first. If any token is bad, nothing is charged.
+    // Decrypt EVERYTHING first. If any token is bad, nothing is returned.
     const items = [];
     for (let i = 0; i < tokens.length; i++) {
       const locked = unseal(tokens[i]);
@@ -190,16 +169,7 @@ async function handler(req, res) {
       items.push({ index: i, safe_counter_clause: locked.c, polite_client_negotiation_email: locked.e });
     }
 
-    let credits = profile && isFinite(Number(profile.credits)) ? Number(profile.credits) : 0;
-    if (!pro) {
-      const spent = await spendOneCredit(user.id);
-      if (!spent.ok) {
-        if (spent.reason === "busy") return res.status(503).json({ error: "Server is busy. Please try again." });
-        return res.status(402).json({ error: "Upgrade to Pro to unlock safer rewrites and counter-proposal emails.", code: "UPGRADE" });
-      }
-      credits = spent.credits;
-    }
-    const out = { success: true, unlocked: items, credits: credits, plan: pro ? "pro" : "free" };
+    const out = { success: true, unlocked: items, plan: "pro" };
     if (items.length === 1) {
       out.safe_counter_clause = items[0].safe_counter_clause;
       out.polite_client_negotiation_email = items[0].polite_client_negotiation_email;

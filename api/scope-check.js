@@ -39,15 +39,10 @@ function readBody(req) {
 
 async function getProfile(userId) {
   try {
-    const rows = await sbFetch("profiles?id=eq." + enc(userId) + "&select=credits,pro_until");
+    const rows = await sbFetch("profiles?id=eq." + enc(userId) + "&select=pro_until");
     return rows && rows[0] ? rows[0] : null;
   } catch (e) {
-    try {
-      const rows2 = await sbFetch("profiles?id=eq." + enc(userId) + "&select=credits");
-      return rows2 && rows2[0] ? rows2[0] : null;
-    } catch (e2) {
-      return null;
-    }
+    return null;
   }
 }
 
@@ -222,7 +217,7 @@ async function handler(req, res) {
     try {
       rows = await sbFetch("projects?id=eq." + enc(String(body.project_id || "")) + "&user_id=eq." + enc(user.id) + "&select=*");
     } catch (e) {
-      return res.status(500).json({ error: "Contract Memory is not set up yet. Run supabase-v3.sql in Supabase." });
+      return res.status(500).json({ error: "Please ensure supabase-v3.sql was executed in Supabase SQL editor." });
     }
     const project = rows && rows[0];
     if (!project) return res.status(404).json({ error: "Project not found." });

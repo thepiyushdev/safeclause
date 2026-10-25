@@ -6,7 +6,7 @@
   const LINKS = [
     ["/dashboard", "Scanner", false], ["/scope-guard", "Scope Guard", false], ["/chaser", "Payment Chaser", false],
     ["/sample", "Sample Report", false], ["/pricing", "Pricing", false],
-    ["/radar", "Risk calculator", true], ["/vault", "Clause library", true],
+    ["/refer", "Earn 30% 💸", true], ["/radar", "Risk calculator", true], ["/vault", "Clause library", true],
   ];
 
   $: initial = $user && $user.email ? $user.email.charAt(0).toUpperCase() : "";
@@ -26,26 +26,7 @@
 <header class="nav">
   <div class="nav-in">
     <a class="brand" href="/" on:click={(e) => nav(e, "/")}>
-      <svg width="26" height="26" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;border-radius:7px">
-  <defs>
-    <linearGradient id="crBg" x1="0" y1="512" x2="512" y2="0" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#4338ca"/>
-      <stop offset="55%" stop-color="#5b46f5"/>
-      <stop offset="100%" stop-color="#7c3aed"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="115" fill="url(#crBg)"/>
-  <circle cx="256" cy="256" r="88" stroke="#a5b4fc" stroke-opacity="0.45" stroke-width="18"/>
-  <circle cx="256" cy="256" r="56" stroke="#818cf8" stroke-opacity="0.35" stroke-width="14"/>
-  <path d="M356 164 A 136 136 0 1 0 356 348" stroke="#ffffff" stroke-width="46" stroke-linecap="round"/>
-  <circle cx="366" cy="160" r="26" fill="#ffffff"/>
-  <circle cx="366" cy="352" r="26" fill="#ffffff"/>
-  <circle cx="256" cy="256" r="25" fill="#ffffff"/>
-  <line x1="256" y1="256" x2="395" y2="224" stroke="#eef2ff" stroke-width="20" stroke-linecap="round"/>
-  <circle cx="424" cy="218" r="68" fill="#8b5cf6"/>
-  <circle cx="424" cy="218" r="50" fill="#ffffff"/>
-  <circle cx="424" cy="218" r="36" fill="#f87171"/>
-</svg>
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#4f46e5" /><circle cx="16" cy="16" r="9" fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="2" /><circle cx="16" cy="16" r="4" fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="2" /><circle cx="22" cy="10" r="2.6" fill="#fb7185" /></svg>
       ClauseRadar
     </a>
 
@@ -56,7 +37,7 @@
     </nav>
 
     <div class="nav-right">
-      <a class="credit" class:pro={$isPro} href="/pricing" title={$isPro ? "Pro plan" : "Free plan. Tap to upgrade"} on:click={(e) => nav(e, "/pricing")}><span class="pl-pre">Plan: </span><b>{$isPro ? "Pro ⚡" : "Free"}</b></a>
+      <a class="planpill" class:pro={$isPro} href="/pricing" title={$isPro ? "Pro plan" : "Free plan. Tap to upgrade"} on:click={(e) => nav(e, "/pricing")}><span class="pl-pre">Plan: </span><b>{$isPro ? "Pro ⚡" : "Free"}</b></a>
       <div class="nav-desktop">
         {#if !$isPro}<button class="btn sm primary" on:click={() => openPay("pro_year")}>Upgrade</button>{/if}
         {#if $user}

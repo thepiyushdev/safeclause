@@ -39,15 +39,10 @@ function readBody(req) {
 
 async function getProfile(userId) {
   try {
-    const rows = await sbFetch("profiles?id=eq." + enc(userId) + "&select=credits,pro_until");
+    const rows = await sbFetch("profiles?id=eq." + enc(userId) + "&select=pro_until");
     return rows && rows[0] ? rows[0] : null;
   } catch (e) {
-    try {
-      const rows2 = await sbFetch("profiles?id=eq." + enc(userId) + "&select=credits");
-      return rows2 && rows2[0] ? rows2[0] : null;
-    } catch (e2) {
-      return null;
-    }
+    return null;
   }
 }
 

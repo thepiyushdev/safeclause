@@ -1,7 +1,7 @@
 <script>
   import { link } from "./app.js";
   import DisclaimerBanner from "./DisclaimerBanner.svelte";
-  const LINKS = [["/dashboard", "Scanner"], ["/scope-guard", "Scope Guard"], ["/chaser", "Payment Chaser"], ["/sample", "Sample report"], ["/pricing", "Pricing"], ["/radar", "Risk calculator"], ["/vault", "Clause library"], ["/privacy", "Privacy"], ["/terms", "Terms"]];
+  const LINKS = [["/dashboard", "Scanner"], ["/scope-guard", "Scope Guard"], ["/chaser", "Payment Chaser"], ["/sample", "Sample report"], ["/pricing", "Pricing"], ["/refer", "Earn 30% 💸"], ["/radar", "Risk calculator"], ["/vault", "Clause library"], ["/privacy", "Privacy"], ["/terms", "Terms"]];
   const year = new Date().getFullYear();
 </script>
 

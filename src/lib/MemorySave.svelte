@@ -76,11 +76,11 @@
   }
 </script>
 
-<section class="card">
-  <b>Save to Contract Memory (Active Project)</b>
+<section class="card iri" style="background:linear-gradient(135deg,#f5f7ff,#fdf4ff)">
+  <b style="font-size:1.125rem">🧠 Save to Contract Memory (Active Project)</b>
   {#if step === "idle" || step === "reading"}
     <p class="muted small" style="margin:6px 0 12px">Optional. We suggest the key terms from this contract (payment days, revision cap, scope, rates). You review and edit them before anything is saved. Your full contract is never stored. This powers Scope Guard and Payment Chaser.</p>
-    <button class="btn primary block" on:click={start} disabled={step === "reading"}>{step === "reading" ? "Reading contract terms..." : "Save to Contract Memory (Active Project)"}</button>
+    <button class="btn primary lg block" on:click={start} disabled={step === "reading"}>{step === "reading" ? "Reading contract terms..." : "Save to Contract Memory (Active Project)"}</button>
   {:else if step === "review" || step === "saving"}
     <p class="muted small" style="margin:6px 0 12px">Check the details. Only what you keep here is saved. Clear any field you do not want stored.</p>
     <div class="grid2">
@@ -109,10 +109,10 @@
       <button class="btn mfull" on:click={() => (step = "idle")} disabled={step === "saving"}>Cancel</button>
     </div>
   {:else}
-    <div class="ok">✅ Saved. Your project is now active.</div>
+    <div class="ok">✅ Saved! Your project is now active and selected in Scope Guard and Payment Chaser.</div>
     <div class="row" style="margin-top:12px">
-      <a class="btn primary mfull" href="/scope-guard" on:click={(e) => link(e, "/scope-guard")}>Open Scope Guard</a>
-      <a class="btn mfull" href="/chaser" on:click={(e) => link(e, "/chaser")}>Open Payment Chaser</a>
+      <a class="btn primary mfull" href="/scope-guard" on:click={(e) => link(e, "/scope-guard")}>Test in Scope Guard</a>
+      <a class="btn mfull" href="/chaser" on:click={(e) => link(e, "/chaser")}>Track in Payment Chaser</a>
     </div>
   {/if}
   {#if error}<div class="error" role="alert">⚠️ {error}</div>{/if}

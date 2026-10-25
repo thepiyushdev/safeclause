@@ -89,13 +89,13 @@ label{display:block;font-size:.9375rem;font-weight:600;color:var(--ink2);margin-
 .chips button.on{border-color:var(--indigo);background:var(--indigo-soft);color:#3730a3}
 @media(min-width:900px){.chips{flex-wrap:wrap;overflow-x:visible}}
 
-/* navbar: phone = logo + credit badge + hamburger; desktop = links */
+/* navbar: phone = logo + plan pill + hamburger; desktop = links */
 .nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.96);backdrop-filter:saturate(180%) blur(14px);-webkit-backdrop-filter:saturate(180%) blur(14px);border-bottom:1px solid var(--line)}
 .nav-in{max-width:1120px;margin:0 auto;padding:0 16px;height:var(--nav-h);display:flex;align-items:center;justify-content:space-between;gap:10px}
 .brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:1.125rem;letter-spacing:-.02em;text-decoration:none;white-space:nowrap;color:#0f172a}
 .nav-links,.nav-desktop{display:none}
 .nav-right{display:flex;align-items:center;gap:8px}
-.credit{display:inline-flex;gap:5px;align-items:center;min-height:36px;padding:4px 12px;border-radius:999px;border:1px solid #c7d2fe;background:var(--indigo-soft);color:#3730a3;font-size:.9375rem;text-decoration:none;font-weight:600;white-space:nowrap}
+.planpill{display:inline-flex;gap:5px;align-items:center;min-height:36px;padding:4px 12px;border-radius:999px;border:1px solid #c7d2fe;background:var(--indigo-soft);color:#3730a3;font-size:.9375rem;text-decoration:none;font-weight:600;white-space:nowrap}
 .avatar{width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#4f46e5,#c026d3);color:#fff;font-weight:700;text-decoration:none;font-size:1rem}
 .burger{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:#fff;font-size:1.35rem;line-height:1}
 .scrim{position:absolute;left:0;right:0;top:100%;height:100vh;height:100dvh;background:rgba(15,23,42,.4);z-index:0;border:0;padding:0;width:100%}
@@ -261,7 +261,7 @@ blockquote.redline{margin:0;padding:12px 14px;border-radius:10px;background:#fff
 /* v3: plan pill, tools, devices */
 .pl-pre{display:none}
 @media(min-width:360px){.pl-pre{display:inline}}
-.credit.pro{background:linear-gradient(135deg,#4f46e5,#c026d3);border-color:transparent;color:#fff}
+.planpill.pro{background:linear-gradient(135deg,#4f46e5,#c026d3);border-color:transparent;color:#fff}
 @media(min-width:1024px){.nav-links a.opt{display:none}}
 @media(min-width:1280px){.nav-links a.opt{display:inline-flex}}
 .rev{height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin:4px 0 2px}
@@ -270,3 +270,19 @@ blockquote.redline{margin:0;padding:12px 14px;border-radius:10px;background:#fff
 .dev{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
 .lvl{margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}
 .lvl.sug{border-color:#818cf8;box-shadow:0 6px 20px rgba(79,70,229,.1)}
+.steps{padding-left:20px;line-height:1.7;color:var(--ink2)}
+
+/* referral + admin */
+.stats4{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px}
+.stat4{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}
+.stat4 span{display:block;font-size:.875rem;color:var(--muted)}
+.stat4 b{display:block;font-size:1.45rem;font-weight:800;letter-spacing:-.02em;overflow-wrap:anywhere}
+@media(min-width:780px){.stats4{grid-template-columns:repeat(4,1fr)}}
+.linkrow{display:flex;flex-direction:column;gap:8px}
+.linkrow input{margin:0}
+@media(min-width:640px){.linkrow{flex-direction:row}.linkrow input{flex:1}}
+.bars{display:flex;align-items:flex-end;gap:8px;height:150px;margin-top:12px}
+.barcol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+.bar{width:100%;max-width:46px;border-radius:8px 8px 0 0;background:linear-gradient(180deg,#818cf8,#4f46e5);min-height:3px}
+.barcol small{font-size:.8125rem;color:var(--muted);margin:4px 0 0;white-space:nowrap}
+.payrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--line)}

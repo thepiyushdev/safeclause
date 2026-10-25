@@ -35,6 +35,16 @@ export const ROUTE_META = {
     description: "Track invoices against your contract's payment terms and get an escalation sequence from a friendly reminder to a formal demand notice.",
     index: true, priority: "0.8",
   },
+  "/refer": {
+    title: "Earn 30% – ClauseRadar Referral Program",
+    description: "Refer friends to ClauseRadar Pro and earn 30% cash on every verified payment, paid to your UPI.",
+    index: true, priority: "0.5",
+  },
+  "/admin": {
+    title: "Admin – ClauseRadar",
+    description: "Admin area.",
+    index: false, priority: "0.1",
+  },
   "/radar": {
     title: "Freelance Contract Risk Calculator – ClauseRadar",
     description: "Estimate how much late payment, unlimited revisions and uncapped liability could cost you before you sign.",
@@ -57,7 +67,7 @@ export const ROUTE_META = {
   },
   "/account": {
     title: "Account – ClauseRadar",
-    description: "Your ClauseRadar account and credit balance.",
+    description: "Your ClauseRadar account, plan and devices.",
     index: false, priority: "0.1",
   },
 };

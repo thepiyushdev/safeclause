@@ -1,6 +1,5 @@
 <script>
-  import { user, isPro, authHeaders, readJson, openAuth, openPay, link, copyToClipboard, fmt, projects, loadProjects, updateProject, scopeUsage } from "../lib/app.js";
-  import DisclaimerBanner from "../lib/DisclaimerBanner.svelte";
+  import { user, isPro, authHeaders, readJson, openAuth, openPay, link, copyToClipboard, fmt, projects, loadProjects, updateProject, scopeUsage, activeProject, memoryError } from "../lib/app.js";
 
   const V = {
     IN_SCOPE: { label: "In Scope (Free)", cls: "low" },
@@ -20,7 +19,9 @@
   let counted = false;
 
   $: if ($user) { loadProjects(); refreshUsage(); }
-  $: if (!projectId && $projects.length) projectId = $projects[0].id;
+  // always land on the latest saved project, never on an empty screen
+  $: if ($projects.length && (!projectId || !$projects.some(function (p) { return p.id === projectId; }))) projectId = $activeProject && $projects.some(function (p) { return p.id === $activeProject; }) ? $activeProject : $projects[0].id;
+  $: if (projectId) activeProject.set(projectId);
   $: project = $projects.find(function (p) { return p.id === projectId; }) || null;
   $: revUsed = project ? project.revisions_used || 0 : 0;
   $: revCap = project && project.revision_cap != null ? project.revision_cap : null;
@@ -87,6 +88,7 @@
     </section>
   {:else if $projects.length === 0}
     <section class="card">
+      {#if $memoryError}<div class="error" role="alert" style="margin:0 0 12px">⚠️ {$memoryError}</div>{/if}
       <b>No active project yet</b>
       <p class="muted small" style="margin:6px 0 12px">Scan a contract and choose Save to Contract Memory. Scope Guard compares client messages with the scope and revision cap you saved.</p>
       <a class="btn primary block" href="/dashboard" on:click={(e) => link(e, "/dashboard")}>Scan a contract</a>
@@ -158,5 +160,4 @@
       </section>
     {/if}
   {/if}
-  <div style="margin-top:18px"><DisclaimerBanner /></div>
 </div>

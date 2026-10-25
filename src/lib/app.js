@@ -17,8 +17,7 @@ export function normalize(p) {
 
 export const route = writable(typeof window === "undefined" ? "/" : normalize(window.location.pathname));
 export const session = writable(null);
-export const profile = writable({ credits: 0, pro_until: null, pro_plan: null, loaded: false });
-export const credits = derived(profile, function (p) { return p.credits; });
+export const profile = writable({ pro_until: null, pro_plan: null, ref_code: null, wallet_balance: 0, loaded: false });
 export const isPro = derived(profile, function (p) { return !!(p.pro_until && new Date(p.pro_until).getTime() > Date.now()); });
 export const deviceState = writable({ blocked: false, revoked: false, devices: [], limit: 1, plan: "free", loaded: false });
 export const authModal = writable({ open: false, mode: "login", note: "" });
@@ -68,13 +67,12 @@ export function link(e, path) {
 export async function refreshProfile(uid) {
   if (!sb) return;
   try {
-    let r = await sb.from("profiles").select("credits,pro_until,pro_plan").eq("id", uid).maybeSingle();
-    if (r.error) r = await sb.from("profiles").select("credits").eq("id", uid).maybeSingle();
-    const d = r.data || {};
-    profile.set({ credits: Number.isFinite(d.credits) ? d.credits : 0, pro_until: d.pro_until || null, pro_plan: d.pro_plan || null, loaded: true });
+    let r = await sb.from("profiles").select("pro_until,pro_plan,ref_code,wallet_balance").eq("id", uid).maybeSingle();
+    if (r.error) r = await sb.from("profiles").select("pro_until,pro_plan").eq("id", uid).maybeSingle();
+    const d = r.error ? {} : r.data || {};
+    profile.set({ pro_until: d.pro_until || null, pro_plan: d.pro_plan || null, ref_code: d.ref_code || null, wallet_balance: Number(d.wallet_balance) || 0, loaded: true });
   } catch (e) {}
 }
-export const refreshCredits = refreshProfile;
 
 /* ---------- devices (Free: 1 at a time, Pro: 3) ---------- */
 export function getDeviceId() {
@@ -139,6 +137,7 @@ export async function signOutThisDevice() {
 export function initApp() {
   const shell = document.getElementById("seo-shell");
   if (shell) shell.remove();
+  captureRef();
   const onPop = function () {
     const p = normalize(window.location.pathname);
     route.set(p);
@@ -152,10 +151,11 @@ export function initApp() {
     if (beat) { clearInterval(beat); beat = null; }
     if (u) {
       refreshProfile(u.id);
+      claimReferral(u);
       syncDevice("register");
       beat = setInterval(function () { if (document.visibilityState === "visible") syncDevice("register"); }, 4 * 60 * 1000);
     } else {
-      profile.set({ credits: 0, pro_until: null, pro_plan: null, loaded: false });
+      profile.set({ pro_until: null, pro_plan: null, ref_code: null, wallet_balance: 0, loaded: false });
       deviceState.set({ blocked: false, revoked: false, devices: [], limit: 1, plan: "free", loaded: false });
     }
   });
@@ -282,21 +282,26 @@ export function deriveScore(res) {
   return Math.max(lo, Math.min(hi, s));
 }
 
-export function perContract(p) {
-  return Math.round(p.price / (p.credits || 1));
-}
 
 /* ---------- Contract Memory: projects and invoices (Supabase, row-level security) ---------- */
 export const projects = writable([]);
 export const invoices = writable([]);
+export const activeProject = writable("");
+export const memoryError = writable("");
+
+const SCHEMA_HELP = "Please ensure supabase-v3.sql was executed in Supabase SQL editor.";
+
+function isSchemaError(e) {
+  const code = String((e && e.code) || "");
+  const m = String((e && e.message) || e || "");
+  return code === "PGRST205" || code === "PGRST204" || code === "42P01" || m.indexOf("schema cache") !== -1 || m.indexOf("does not exist") !== -1 || m.indexOf("Could not find the table") !== -1;
+}
 
 function friendly(e) {
   const m = String((e && e.message) || e || "");
   if (m.indexOf("FREE_LIMIT_PROJECTS") !== -1) return new Error("The Free plan allows 1 active project. Upgrade to Pro for unlimited projects.");
   if (m.indexOf("FREE_LIMIT_INVOICES") !== -1) return new Error("The Free plan allows 1 active invoice. Mark it paid or upgrade to Pro for unlimited invoices.");
-  if (m.indexOf("PGRST205") !== -1 || m.indexOf("does not exist") !== -1 || m.indexOf("schema cache") !== -1) {
-    return new Error("Contract Memory is not set up yet. Run supabase-v3.sql in the Supabase SQL Editor.");
-  }
+  if (isSchemaError(e)) return new Error(SCHEMA_HELP);
   return new Error(m || "Database error. Please try again.");
 }
 
@@ -310,14 +315,19 @@ function need() {
 export async function loadProjects() {
   if (!sb || !get(user)) return;
   const r = await sb.from("projects").select("*").order("created_at", { ascending: false });
-  if (!r.error) projects.set(r.data || []);
+  if (r.error) { memoryError.set(friendly(r.error).message); return; }
+  memoryError.set("");
+  projects.set(r.data || []);
 }
 
 export async function saveProject(rec) {
   const u = need();
   const r = await sb.from("projects").insert(Object.assign({}, rec, { user_id: u.id })).select().single();
   if (r.error) throw friendly(r.error);
-  await loadProjects();
+  projects.update(function (list) { return [r.data].concat(list.filter(function (p) { return p.id !== r.data.id; })); });
+  activeProject.set(r.data.id);
+  memoryError.set("");
+  loadProjects();
   return r.data;
 }
 
@@ -338,7 +348,8 @@ export async function deleteProject(id) {
 export async function loadInvoices() {
   if (!sb || !get(user)) return;
   const r = await sb.from("invoices").select("*").order("due_date", { ascending: true });
-  if (!r.error) invoices.set(r.data || []);
+  if (r.error) { memoryError.set(friendly(r.error).message); return; }
+  invoices.set(r.data || []);
 }
 
 export async function saveInvoice(rec) {
@@ -370,14 +381,67 @@ export async function scopeUsage() {
   return r.error ? null : r.count || 0;
 }
 
+/* ---------- Referral program (30% commission) ---------- */
+export const MIN_PAYOUT = 100;
+export const referrals = writable([]);
+export const payouts = writable([]);
+export const refError = writable("");
+const REF_SCHEMA_HELP = "Please ensure supabase-v4-referrals.sql was executed in Supabase SQL editor.";
 
-// Capture ?ref=CODE affiliate parameter automatically
-if (typeof window !== "undefined") {
+export function captureRef() {
   try {
-    const params = new URLSearchParams(window.location.search);
-    const ref = params.get("ref");
-    if (ref && ref.trim()) {
-      localStorage.setItem("cr_ref", ref.trim().toUpperCase());
-    }
+    const m = String(window.location.search || "").match(/[?&]ref=([A-Za-z0-9]{4,16})/);
+    if (m) window.localStorage.setItem("cr_ref", m[1].toLowerCase());
   } catch (e) {}
+}
+
+export function getRef() {
+  try { return window.localStorage.getItem("cr_ref") || ""; } catch (e) { return ""; }
+}
+
+export function referralLink(code) {
+  return SITE + "/?ref=" + code;
+}
+
+export async function claimReferral(u) {
+  const code = getRef();
+  if (!sb || !u || !code) return;
+  const key = "cr_ref_claimed_" + u.id;
+  try { if (window.localStorage.getItem(key) === code) return; } catch (e) {}
+  try {
+    const r = await sb.rpc("claim_referral", { p_code: code });
+    if (!r.error) window.localStorage.setItem(key, code);
+  } catch (e) {}
+}
+
+function refFriendly(e) {
+  const code = String((e && e.code) || "");
+  const m = String((e && e.message) || e || "");
+  if (m.indexOf("INVALID_UPI") !== -1) return new Error("Enter a valid UPI ID, like name@bank.");
+  if (m.indexOf("MIN_PAYOUT") !== -1) return new Error("The minimum payout is ₹" + MIN_PAYOUT + ".");
+  if (m.indexOf("INSUFFICIENT_BALANCE") !== -1) return new Error("You do not have enough balance.");
+  if (m.indexOf("PENDING_EXISTS") !== -1) return new Error("You already have a pending payout. Wait for it to be approved.");
+  if (code === "PGRST205" || code === "PGRST202" || code === "42P01" || m.indexOf("schema cache") !== -1 || m.indexOf("does not exist") !== -1 || m.indexOf("Could not find") !== -1) return new Error(REF_SCHEMA_HELP);
+  return new Error(m || "Something went wrong. Please try again.");
+}
+
+export async function loadReferralData() {
+  const u = get(user);
+  if (!sb || !u) return;
+  const a = await sb.from("referrals").select("*").order("created_at", { ascending: false });
+  const b = await sb.from("payout_requests").select("*").order("created_at", { ascending: false });
+  const err = a.error || b.error;
+  if (err) { refError.set(refFriendly(err).message); return; }
+  refError.set("");
+  referrals.set(a.data || []);
+  payouts.set(b.data || []);
+  await refreshProfile(u.id);
+}
+
+export async function requestPayout(upi) {
+  if (!sb || !get(user)) throw new Error("Please log in first.");
+  const r = await sb.rpc("request_payout", { p_upi: String(upi || "").trim() });
+  if (r.error) throw refFriendly(r.error);
+  await loadReferralData();
+  return r.data;
 }

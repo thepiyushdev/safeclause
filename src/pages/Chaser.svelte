@@ -1,6 +1,5 @@
 <script>
-  import { user, isPro, openAuth, openPay, link, copyToClipboard, projects, invoices, loadProjects, loadInvoices, saveInvoice, markInvoicePaid, deleteInvoice } from "../lib/app.js";
-  import DisclaimerBanner from "../lib/DisclaimerBanner.svelte";
+  import { user, isPro, openAuth, openPay, link, copyToClipboard, projects, invoices, loadProjects, loadInvoices, saveInvoice, markInvoicePaid, deleteInvoice, activeProject, memoryError } from "../lib/app.js";
 
   const DAY = 86400000;
   let projectId = "";
@@ -16,7 +15,9 @@
   let copied = "";
 
   $: if ($user) { loadProjects(); loadInvoices(); }
-  $: if (!projectId && $projects.length) projectId = $projects[0].id;
+  // always land on the latest saved project, never on an empty screen
+  $: if ($projects.length && (!projectId || !$projects.some(function (p) { return p.id === projectId; }))) projectId = $activeProject && $projects.some(function (p) { return p.id === $activeProject; }) ? $activeProject : $projects[0].id;
+  $: if (projectId) activeProject.set(projectId);
   $: project = $projects.find(function (p) { return p.id === projectId; }) || null;
   $: if (project && invDate && !dueTouched && project.payment_days != null) dueDate = addDays(invDate, project.payment_days);
   $: list = $invoices.filter(function (i) { return showPaid ? true : !i.paid_at; });
@@ -134,6 +135,7 @@
     </section>
   {:else if $projects.length === 0}
     <section class="card">
+      {#if $memoryError}<div class="error" role="alert" style="margin:0 0 12px">⚠️ {$memoryError}</div>{/if}
       <b>No active project yet</b>
       <p class="muted small" style="margin:6px 0 12px">Scan a contract and choose Save to Contract Memory. Payment Chaser reads the payment terms and late-fee clause you saved.</p>
       <a class="btn primary block" href="/dashboard" on:click={(e) => link(e, "/dashboard")}>Scan a contract</a>
@@ -155,6 +157,7 @@
         </div>
       </div>
       <button class="btn primary block" on:click={add} disabled={saving}>{saving ? "Saving..." : "Add invoice"}</button>
+      {#if $memoryError}<div class="error" role="alert">⚠️ {$memoryError}</div>{/if}
       {#if error}<div class="error" role="alert">⚠️ {error}</div>{/if}
       {#if error.indexOf("Free plan") !== -1}<button class="btn primary block" style="margin-top:10px" on:click={() => openPay("pro_year")}>Upgrade to Pro ⚡</button>{/if}
     </section>
@@ -214,5 +217,4 @@
       <section class="card"><p class="muted" style="margin:0">No open invoices. Add one above to start tracking.</p></section>
     {/if}
   {/if}
-  <div style="margin-top:18px"><DisclaimerBanner /></div>
 </div>

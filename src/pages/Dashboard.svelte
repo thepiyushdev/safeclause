@@ -1,13 +1,12 @@
 <script>
   import { onDestroy } from "svelte";
-  import { user, credits, isPro, profile, MAX_CHARS, authHeaders, readJson, openAuth, openPay, deriveScore, catLabel, fmt, refreshProfile } from "../lib/app.js";
+  import { isPro, MAX_CHARS, authHeaders, readJson, openPay, deriveScore, catLabel, fmt } from "../lib/app.js";
   import { SAMPLE_CONTRACTS } from "../lib/data.mjs";
   import { openReport } from "../lib/report.js";
   import ClauseCard from "../lib/ClauseCard.svelte";
   import MemorySave from "../lib/MemorySave.svelte";
   import RiskBadge from "../lib/RiskBadge.svelte";
   import RiskGauge from "../lib/RiskGauge.svelte";
-  import DisclaimerBanner from "../lib/DisclaimerBanner.svelte";
 
   const MAX_FILE = 10 * 1024 * 1024;
   const STEPS = ["Reading your document", "Detecting risky clauses", "Scoring severity", "Drafting safer rewrites"];
@@ -34,7 +33,7 @@
   $: allUnlocked = flagged.length > 0 && flagged.every(function (c, i) { return !!unlockedData[i]; });
   $: cats = ["All"].concat(flagged.map(function (c) { return catLabel(c.category); }).filter(function (v, i, a) { return a.indexOf(v) === i; }));
   $: shown = flagged.map(function (c, i) { return { c: c, i: i }; }).filter(function (x) { return cat === "All" || catLabel(x.c.category) === cat; });
-  $: unlockLabel = $isPro ? "Unlock All Clauses (Pro) ⚡" : $credits >= 1 ? "Use 1 Credit to Unlock All Clauses (Balance: " + $credits + ") ⚡" : "Upgrade to Pro to Unlock All Clauses ⚡";
+  $: unlockLabel = $isPro ? "Unlock All Clauses (Pro) ⚡" : "Upgrade to Pro to Unlock All Clauses ⚡";
 
   onDestroy(function () { if (timer) clearInterval(timer); });
 
@@ -198,11 +197,10 @@
     }
   }
 
-  // Pro (or 1 legacy credit) unlocks EVERY flagged clause of this audit in a single request.
+  // Pro unlocks EVERY flagged clause of this audit in a single request. Free accounts are sent to the upgrade modal.
   async function unlockAll() {
     error = "";
-    if (!$user) { openAuth("login", "Log in to unlock. Pro and your account are saved across devices."); return; }
-    if (!$isPro && $credits < 1) { openPay("pro_year"); return; }
+    if (!$isPro) { openPay("pro_year"); return; }
     if (flagged.length === 0 || unlocking) return;
     unlocking = true;
     unlockError = "";
@@ -220,7 +218,6 @@
       const map = {};
       data.unlocked.forEach(function (u) { map[u.index] = u; });
       unlockedData = map;
-      if ($user) refreshProfile($user.id);
     } catch (err) {
       let msg = err && err.message ? err.message : "Unlock failed.";
       if (err instanceof TypeError) msg = "Network error. Check your connection and try again.";
@@ -304,6 +301,10 @@
       </div>
     </section>
 
+    {#if flagged.length > 0}
+      <MemorySave text={text} jur={jur} />
+    {/if}
+
     {#if flagged.length > 0 && !allUnlocked}
       <section class="card" style="border-color:#c7d2fe;background:#f5f7ff">
         <b>Unlock all {flagged.length} safer rewrites</b>
@@ -311,10 +312,6 @@
         <button class="btn primary block" on:click={unlockAll} disabled={unlocking}>{unlocking ? "Unlocking all clauses..." : unlockLabel}</button>
         {#if unlockError}<div class="error" role="alert">⚠️ {unlockError}</div>{/if}
       </section>
-    {/if}
-
-    {#if flagged.length > 0}
-      <MemorySave text={text} jur={jur} />
     {/if}
 
     {#if cats.length > 2}
@@ -330,6 +327,5 @@
     {#if flagged.length === 0}
       <section class="card"><p style="margin:0">No major red flags found in the text you provided. ✅</p></section>
     {/if}
-    <div style="margin-top:18px"><DisclaimerBanner /></div>
   {/if}
 </div>
