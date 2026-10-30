@@ -23,6 +23,7 @@ export const deviceState = writable({ blocked: false, revoked: false, devices: [
 export const authModal = writable({ open: false, mode: "login", note: "" });
 export const payModal = writable({ open: false, planId: "pro_year" });
 export const showRecovery = writable(false);
+export const scanMode = writable("freelance");
 export const user = derived(session, function (s) { return s ? s.user : null; });
 
 let currentUser = null;

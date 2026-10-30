@@ -6,8 +6,8 @@ export const OG_IMAGE = SITE + "/og.png";
 
 export const ROUTE_META = {
   "/": {
-    title: "ClauseRadar – AI Contract Review for Freelancers & Devs",
-    description: "Audit client contracts in 30 seconds. Spot uncapped liability, payment traps, and risky clauses before you sign.",
+    title: "ClauseRadar – AI Contract Review for Freelancers, Creators & Job Seekers",
+    description: "Scan freelance contracts, creator brand deals, job offer letters and agency agreements in 30 seconds. Spot payment traps, rights grabs, bonds and risky clauses before you sign.",
     index: true, priority: "1.0",
   },
   "/sample": {
@@ -16,8 +16,8 @@ export const ROUTE_META = {
     index: true, priority: "0.8",
   },
   "/dashboard": {
-    title: "Contract Scanner – ClauseRadar",
-    description: "Upload a PDF or DOCX, or paste contract text, to detect liability, payment and IP risks in seconds.",
+    title: "Contract Scanner for Freelance, Brand Deal, Job Offer & Agency Contracts – ClauseRadar",
+    description: "Upload a PDF or DOCX, or paste text. Pick a mode: freelance client contract, creator brand deal sponsorship, job offer letter and bond, or agency sub-contract.",
     index: true, priority: "0.9",
   },
   "/pricing": {
@@ -51,8 +51,8 @@ export const ROUTE_META = {
     index: true, priority: "0.6",
   },
   "/vault": {
-    title: "Freelancer Contract Clause Library – ClauseRadar",
-    description: "Copy-paste contractor-friendly clauses for payment security, IP retention, kill fees and capped liability.",
+    title: "Contract Clause Library: Freelance, Creator Deals, Job & IP – ClauseRadar",
+    description: "Copy-paste safer clauses for payment security, IP retention, creator usage rights and exclusivity, employment side-project carve-outs, kill fees and capped liability.",
     index: true, priority: "0.6",
   },
   "/privacy": {

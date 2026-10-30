@@ -1,6 +1,7 @@
 <script>
   import { onDestroy } from "svelte";
-  import { isPro, MAX_CHARS, authHeaders, readJson, openPay, deriveScore, catLabel, fmt } from "../lib/app.js";
+  import { get } from "svelte/store";
+  import { scanMode, isPro, MAX_CHARS, authHeaders, readJson, openPay, deriveScore, catLabel, fmt } from "../lib/app.js";
   import { SAMPLE_CONTRACTS } from "../lib/data.mjs";
   import { openReport } from "../lib/report.js";
   import ClauseCard from "../lib/ClauseCard.svelte";
@@ -11,6 +12,13 @@
   const MAX_FILE = 10 * 1024 * 1024;
   const STEPS = ["Reading your document", "Detecting risky clauses", "Scoring severity", "Drafting safer rewrites"];
 
+  const MODES = [
+    { key: "freelance", label: "Freelance / Client" },
+    { key: "creator", label: "BrandDeal Shield (Creators)" },
+    { key: "employment", label: "Job Offer & Bond" },
+    { key: "agency", label: "Agency / Sub-Contract" },
+  ];
+  let mode = get(scanMode);
   let jur = "india";
   let text = "";
   let drag = false;
@@ -146,20 +154,44 @@
   function onPick(e) { handleFile(e.target.files ? e.target.files[0] : null); }
   function openPicker() { if (fileInput) fileInput.click(); }
 
+  const SAMPLE_MODES = { india: ["freelance", "india"], creator: ["creator", "india"], employment: ["employment", "india"], agency: ["agency", "global"] };
   function loadSample(key) {
     text = SAMPLE_CONTRACTS[key];
-    jur = key === "india" ? "india" : "global";
+    const m = SAMPLE_MODES[key] || ["freelance", "india"];
+    mode = m[0];
+    scanMode.set(mode);
+    jur = m[1];
     fileInfo = null;
     error = "";
   }
 
   /* ---------- scan ---------- */
   // The jurisdiction is passed to the AI as a short note placed before the contract text.
-  function jurisdictionNote() {
+  function freelanceNote() {
     if (jur === "india") {
       return "[AUDITOR NOTE - not part of the contract: the freelancer works under Indian law. Consider the Indian Contract Act 1872 (for example restraint-of-trade clauses) and MSMED Act 2006 payment-period norms (45 days) when judging risk and writing counter-clauses. Never quote this note.]\n\n";
     }
     return "[AUDITOR NOTE - not part of the contract: the freelancer works remotely under US, UK or international terms. Prefer standard Net-14 or Net-30 payment, IP assignment only after full payment, and a liability cap equal to fees paid. Never quote this note.]\n\n";
+  }
+
+  // The note placed before the contract text combines the selected mode and jurisdiction.
+  function jurisdictionNote() {
+    const india = jur === "india";
+    if (mode === "creator") {
+      return "[AUDITOR NOTE - not part of the contract: this is a creator or influencer brand sponsorship agreement and the user is the creator. Check usage rights (organic versus paid advertising and whitelisting, duration, perpetual or irrevocable licences), category exclusivity (scope and length), reshoot and edit limits, payment deadlines and conditions, kill fees and cancellation, and approval or conduct clauses. Write polite counter-emails addressed to the brand or talent agency. " + (india ? "The creator works under Indian law; consider the Indian Contract Act 1872. " : "The creator works under US, UK or international terms. ") + "Never quote this note.]\n\n";
+    }
+    if (mode === "employment") {
+      return "[AUDITOR NOTE - not part of the contract: this is a job offer letter or employment agreement and the user is the employee or fresher. Check employment bonds, training-cost recovery and liquidated damages, notice period length and buyouts, withheld original certificates, side-project and personal-time IP claims, non-competes and discretionary variable pay. " + (india ? "The employee works in India: reference Section 27 of the Indian Contract Act 1872 (agreements in restraint of trade) when discussing non-competes and restrictions, but do not claim a clause is definitely void; say it may be challengeable and suggest asking a lawyer. " : "Consider local employment law and say when a lawyer should be consulted. ") + "Write polite HR clarification emails as the counter-emails. Never quote this note.]\n\n";
+    }
+    if (mode === "agency") {
+      return "[AUDITOR NOTE - not part of the contract: this is an agency, consultant or sub-contractor agreement and the user is the sub-contractor. Check pay-when-paid and pay-if-paid clauses, non-solicitation and non-compete scope, portfolio and white-label restrictions, SLA penalties, uncapped indemnification and IP assignment before payment. " + (india ? "The user works under Indian law; consider the Indian Contract Act 1872 and MSMED Act payment norms. " : "The user works under US, UK or international terms. ") + "Never quote this note.]\n\n";
+    }
+    return freelanceNote();
+  }
+
+  function setMode(k) {
+    mode = k;
+    scanMode.set(k);
   }
 
   async function scan() {
@@ -179,7 +211,7 @@
       const r = await fetch("/api/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: payload, jurisdiction: jur }),
+        body: JSON.stringify({ text: payload, jurisdiction: jur, mode: mode }),
       });
       const data = await readJson(r);
       if (!r.ok) throw new Error(data.error || "Server error (HTTP " + r.status + ")");
@@ -238,6 +270,10 @@
   <h1 class="h2">Contract scanner</h1>
   <p class="muted">Drop a contract to get a risk score, flagged clauses and safer rewrites.</p>
 
+  <div class="chips" role="group" aria-label="Contract mode">
+    {#each MODES as m}<button class:on={mode === m.key} on:click={() => setMode(m.key)}>{m.label}</button>{/each}
+  </div>
+
   <div class="seg" role="group" aria-label="Jurisdiction">
     <button class:on={jur === "india"} on:click={() => (jur = "india")}>🇮🇳 India <span class="muted small">(Act 1872 / MSMED)</span></button>
     <button class:on={jur === "global"} on:click={() => (jur = "global")}>🌐 US / UK / Global</button>
@@ -263,8 +299,10 @@
     <textarea id="ct" bind:value={text} rows="9" maxlength={MAX_CHARS} placeholder="Paste your client contract here..."></textarea>
     <div class="muted small num" style="margin:0 0 10px">{text.length} / {MAX_CHARS}</div>
     <div class="row">
-      <button class="btn sm mfull" on:click={() => loadSample("india")}>Sample India</button>
-      <button class="btn sm mfull" on:click={() => loadSample("us")}>Sample US</button>
+      <button class="btn sm mfull" on:click={() => loadSample("india")}>Sample Freelance (India)</button>
+      <button class="btn sm mfull" on:click={() => loadSample("creator")}>Sample Brand Deal (Creator)</button>
+      <button class="btn sm mfull" on:click={() => loadSample("employment")}>Sample Job Bond (Fresher/Dev)</button>
+      <button class="btn sm mfull" on:click={() => loadSample("agency")}>Sample Agency (US/Global)</button>
     </div>
 
     <button class="btn primary lg block" style="margin-top:12px" on:click={scan} disabled={loading || readingFile}>

@@ -62,10 +62,14 @@ function cta(href, label, primary) {
 }
 
 function homeShell() {
-  let h = '<p style="display:inline-block;padding:4px 12px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:14px;font-weight:600">Introducing ClauseRadar – Protect your freelance income &amp; liability</p>';
-  h += h1("Audit client contracts in 30 seconds. Stop uncapped liability before you sign.");
-  h += para("ClauseRadar reads your client agreement, flags uncapped liability, Net-60 and Net-90 payment traps and IP grabs, explains each risk in plain English, and writes the counter-proposal email for you.");
+  let h = '<p style="display:inline-block;padding:4px 12px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:14px;font-weight:600">ClauseRadar – contract protection for freelancers, creators, job seekers &amp; agencies</p>';
+  h += h1("Audit any contract in 30 seconds. Stop risky clauses before you sign.");
+  h += para("ClauseRadar reads your freelance contract, creator brand deal, job offer letter or agency agreement, flags the traps (Net-90 payments, perpetual ad rights, employment bonds, pay-when-paid clauses), explains each risk in plain English and writes the counter-email for you.");
   h += "<p>" + cta("/dashboard", "Upload Contract", true) + cta("/sample", "View Sample Audit Report", false) + "</p>";
+  h += sec("Freelancers and developers", ["Scan client contracts for scope creep, Net-60 and Net-90 payment traps, uncapped liability and IP grabs."]);
+  h += sec("BrandDeal Shield for creators and influencers", ["Check brand sponsorship agreements for perpetual ad usage and whitelisting rights, category exclusivity, reshoots, payment deadlines and kill fees."]);
+  h += sec("Offer Letter and Bond Shield for job seekers", ["Check job offers for service bonds, 90-day notice buyouts, side-project IP claims and non-competes, with Section 27 of the Indian Contract Act 1872 in mind for India."]);
+  h += sec("Agency White-Label Shield", ["Check sub-contractor and agency agreements for pay-when-paid traps, non-solicitation, portfolio restrictions, SLA penalties and uncapped indemnification."]);
   BENTO.forEach(function (b) { h += sec(b.title, [b.text]); });
   h += sec("Zero contract training", ["We never use your agreements to train models, and scans are not stored by default. If you opt in to Contract Memory, we save only the terms and short clause excerpts you review. Contract text is processed by third-party AI providers under their API terms."]);
   h += '<h2 style="font-size:22px;margin:28px 0 6px">Frequently asked questions</h2>';
@@ -81,7 +85,7 @@ export function shellHtml(p) {
     return wrap(h + "<p>" + cta("/dashboard", "Scan your own contract", true) + "</p>");
   }
   if (p === "/dashboard") {
-    return wrap(h1("Contract scanner") + para("Upload a PDF or DOCX, or paste contract text. ClauseRadar flags liability, payment terms, scope creep, IP rights and termination risks, explains each one in plain English and suggests a safer rewrite.") + "<p>" + cta("/sample", "View Sample Audit Report", false) + "</p>");
+    return wrap(h1("Contract scanner") + para("Upload a PDF or DOCX, or paste contract text, and pick a mode: freelance client contract, BrandDeal Shield for creator sponsorships, Offer Letter and Bond Shield for job seekers, or Agency White-Label Shield. ClauseRadar flags the risky clauses, explains each one in plain English and suggests a safer rewrite.") + "<p>" + cta("/sample", "View Sample Audit Report", false) + "</p>");
   }
   if (p === "/pricing") {
     let h = h1("Pricing") + para("Scanning is free. Go Pro to unlock every safer rewrite, Scope Guard, Payment Chaser, PDF reports and use on up to 3 devices.");
@@ -103,7 +107,7 @@ export function shellHtml(p) {
     return wrap(h1("Freelance contract risk calculator") + para("Enter your project fee, payment terms, liability, IP transfer and revision limits to estimate what late payment, unpaid revisions and uncapped liability could cost you."));
   }
   if (p === "/vault") {
-    let h = h1("Freelancer contract clause library") + para("Contractor-friendly clauses you can copy and adapt. Have a lawyer review high-value deals.");
+    let h = h1("Contract clause library") + para("Contractor-friendly clauses for freelancers, creator brand deals and job offers: payment security, IP retention, creator usage rights and exclusivity, side-project carve-outs, kill fees and capped liability. Have a lawyer review high-value deals.");
     VAULT.forEach(function (v) { h += sec(v.title, [v.text]); });
     return wrap(h);
   }
