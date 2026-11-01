@@ -11,8 +11,8 @@ export const ROUTE_META = {
     index: true, priority: "1.0",
   },
   "/sample": {
-    title: "Sample Contract Audit Report – ClauseRadar",
-    description: "Explore an interactive sample audit: severity-coded clauses, plain-English explanations and safer rewrites with counter-proposal emails.",
+    title: "Sample Contract Audit Report & Safer Rewrites – ClauseRadar",
+    description: "Explore a sample audit with risky clauses by severity, plain-English notes, safer rewrites and counter-emails for freelance, creator, job and agency deals.",
     index: true, priority: "0.8",
   },
   "/dashboard": {
@@ -21,23 +21,23 @@ export const ROUTE_META = {
     index: true, priority: "0.9",
   },
   "/pricing": {
-    title: "Pricing – ClauseRadar",
-    description: "Scan contracts free. Go Pro for ₹499 a month to unlock every rewrite, Scope Guard, Payment Chaser and PDF reports.",
+    title: "ClauseRadar Pricing: Free Contract Scan, Pro from ₹499/month",
+    description: "Scan any contract free. Go Pro for ₹499/month or ₹3,999/year: every rewrite unlocked, Scope Guard, Payment Chaser, PDF reports and 3 devices.",
     index: true, priority: "0.8",
   },
   "/scope-guard": {
-    title: "Scope Guard – Stop Client Scope Creep | ClauseRadar",
-    description: "Paste a client's quick tweak request. Find out in seconds if it is in scope, billable or a grey area, with a polite reply and a change-order quote.",
+    title: "Scope Guard: Free or Billable? Check Client Requests – ClauseRadar",
+    description: "Paste a client's quick tweak message and see if it is in scope, billable or a grey area, with the contract clause, a polite reply and a change-order quote.",
     index: true, priority: "0.8",
   },
   "/chaser": {
-    title: "Payment Chaser – Late Invoice Reminders | ClauseRadar",
-    description: "Track invoices against your contract's payment terms and get an escalation sequence from a friendly reminder to a formal demand notice.",
+    title: "Payment Chaser: Late Payment Reminders & Notices – ClauseRadar",
+    description: "Track invoices against your contract terms and send a friendly reminder, a firm late-fee notice and a formal demand notice, with MSMED Act references for India.",
     index: true, priority: "0.8",
   },
   "/refer": {
-    title: "Earn 30% – ClauseRadar Referral Program",
-    description: "Refer friends to ClauseRadar Pro and earn 30% cash on every verified payment, paid to your UPI.",
+    title: "Earn 30% Commission: ClauseRadar Referral Program",
+    description: "Refer freelancers, creators, job seekers and agencies to ClauseRadar Pro and earn 30% cash on every verified payment, paid to your UPI.",
     index: true, priority: "0.5",
   },
   "/admin": {
@@ -46,8 +46,8 @@ export const ROUTE_META = {
     index: false, priority: "0.1",
   },
   "/radar": {
-    title: "Freelance Contract Risk Calculator – ClauseRadar",
-    description: "Estimate how much late payment, unlimited revisions and uncapped liability could cost you before you sign.",
+    title: "Contract Risk Calculator: Cost of Net-90 Payments & Liability",
+    description: "Estimate what late payment, unlimited revisions, IP transfer and uncapped liability could cost you before you sign a freelance or agency contract.",
     index: true, priority: "0.6",
   },
   "/vault": {
@@ -56,13 +56,13 @@ export const ROUTE_META = {
     index: true, priority: "0.6",
   },
   "/privacy": {
-    title: "Privacy Policy – ClauseRadar",
-    description: "How ClauseRadar handles your contracts, account data and payment records.",
+    title: "Privacy Policy: How ClauseRadar Handles Your Contracts & Data",
+    description: "How ClauseRadar processes contracts, which Contract Memory, referral and payment records it keeps, which providers it uses and how to delete your data.",
     index: true, priority: "0.3",
   },
   "/terms": {
-    title: "Terms of Service – ClauseRadar",
-    description: "The terms for using ClauseRadar, including the not-legal-advice disclaimer.",
+    title: "Terms of Service & Not-Legal-Advice Notice – ClauseRadar",
+    description: "Terms for using ClauseRadar: Free and Pro plans, UPI payments, referral program rules, acceptable use and the not-legal-advice disclaimer.",
     index: true, priority: "0.3",
   },
   "/account": {

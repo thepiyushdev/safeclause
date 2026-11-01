@@ -6,6 +6,22 @@ export function esc(s) {
   return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+// "<" is escaped so structured data can never end the script tag early
+function jsonLd(obj) {
+  return '<script type="application/ld+json">' + JSON.stringify(obj).replace(/</g, String.fromCharCode(92) + "u003c") + "</script>\n";
+}
+
+// FAQPage structured data, built from the same FAQS array that the homepage shows
+export function faqSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: FAQS.map(function (f) {
+      return { "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } };
+    }),
+  };
+}
+
 export function headTags(p) {
   const m = ROUTE_META[p] || ROUTE_META["/"];
   const url = SITE + (p === "/" ? "" : p);
@@ -28,7 +44,7 @@ export function headTags(p) {
   h += '<meta name="twitter:description" content="' + d + '" />\n';
   h += '<meta name="twitter:image" content="' + OG_IMAGE + '" />\n';
   if (p === "/") {
-    const ld = {
+    h += jsonLd({
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       name: BRAND,
@@ -37,14 +53,14 @@ export function headTags(p) {
       operatingSystem: "Web",
       description: m.description,
       offers: { "@type": "AggregateOffer", priceCurrency: "INR", lowPrice: "499", highPrice: "3999", offerCount: String(PLANS.length) },
-    };
-    h += '<script type="application/ld+json">' + JSON.stringify(ld) + "</script>\n";
+    });
+    h += jsonLd(faqSchema());
   }
   return h;
 }
 
 const BTN = "display:inline-block;padding:11px 20px;border-radius:12px;font-weight:600;text-decoration:none;margin:4px 8px 4px 0;";
-const NAVLINKS = [["/", "Home"], ["/dashboard", "Scanner"], ["/scope-guard", "Scope Guard"], ["/chaser", "Payment Chaser"], ["/sample", "Sample report"], ["/pricing", "Pricing"], ["/radar", "Risk calculator"], ["/vault", "Clause library"], ["/privacy", "Privacy"], ["/terms", "Terms"]];
+const NAVLINKS = [["/", "Home"], ["/dashboard", "Scanner"], ["/scope-guard", "Scope Guard"], ["/chaser", "Payment Chaser"], ["/sample", "Sample report"], ["/pricing", "Pricing"], ["/refer", "Earn 30%"], ["/radar", "Risk calculator"], ["/vault", "Clause library"], ["/privacy", "Privacy"], ["/terms", "Terms"]];
 
 function wrap(inner) {
   const nav = NAVLINKS.map(function (l) { return '<a href="' + l[0] + '" style="color:#4f46e5;margin-right:14px">' + l[1] + "</a>"; }).join("");
@@ -61,15 +77,25 @@ function cta(href, label, primary) {
   return '<a href="' + href + '" style="' + BTN + (primary ? "background:#4f46e5;color:#fff" : "background:#fff;color:#0f172a;border:1px solid #cbd5e1") + '">' + esc(label) + "</a>";
 }
 
+// The four audiences ClauseRadar serves. Used by the home page and every product page shell.
+export const MODES = [
+  { name: "Freelancers and developers", text: "Scan client and freelance contracts for scope creep and unlimited revisions, Net-60 and Net-90 payment traps, uncapped liability, IP transfer before payment, late payment terms and unfair termination. Get safer clauses, a counter-proposal email, Scope Guard checks and Payment Chaser reminders." },
+  { name: "BrandDeal Shield for creators and influencers", text: "Check brand sponsorship and influencer marketing agreements for perpetual and irrevocable usage rights, paid ad whitelisting, category exclusivity, reshoot and edit limits, content approval, payment deadlines and kill fees. Get a polite counter-email for the brand or talent agency." },
+  { name: "Offer Letter and Bond Shield for job seekers and freshers", text: "Check job offer letters and employment agreements for service bonds and training cost penalties, 90-day notice period buyouts, withheld original certificates, side-project IP claims and non-competes, with Section 27 of the Indian Contract Act 1872 in mind for India. Get a polite clarification email for HR. This is not legal advice." },
+  { name: "Agency White-Label Shield for agencies and consultants", text: "Check sub-contractor and agency agreements for pay-when-paid and pay-if-paid traps, non-solicitation and non-compete scope, portfolio and white-label restrictions, SLA penalties, uncapped indemnification and IP assignment before payment." },
+];
+
+function modesBlock() {
+  return MODES.map(function (m) { return sec(m.name, [m.text]); }).join("");
+}
+
 function homeShell() {
   let h = '<p style="display:inline-block;padding:4px 12px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:14px;font-weight:600">ClauseRadar – contract protection for freelancers, creators, job seekers &amp; agencies</p>';
   h += h1("Audit any contract in 30 seconds. Stop risky clauses before you sign.");
   h += para("ClauseRadar reads your freelance contract, creator brand deal, job offer letter or agency agreement, flags the traps (Net-90 payments, perpetual ad rights, employment bonds, pay-when-paid clauses), explains each risk in plain English and writes the counter-email for you.");
   h += "<p>" + cta("/dashboard", "Upload Contract", true) + cta("/sample", "View Sample Audit Report", false) + "</p>";
-  h += sec("Freelancers and developers", ["Scan client contracts for scope creep, Net-60 and Net-90 payment traps, uncapped liability and IP grabs."]);
-  h += sec("BrandDeal Shield for creators and influencers", ["Check brand sponsorship agreements for perpetual ad usage and whitelisting rights, category exclusivity, reshoots, payment deadlines and kill fees."]);
-  h += sec("Offer Letter and Bond Shield for job seekers", ["Check job offers for service bonds, 90-day notice buyouts, side-project IP claims and non-competes, with Section 27 of the Indian Contract Act 1872 in mind for India."]);
-  h += sec("Agency White-Label Shield", ["Check sub-contractor and agency agreements for pay-when-paid traps, non-solicitation, portfolio restrictions, SLA penalties and uncapped indemnification."]);
+  h += modesBlock();
+  h += sec("How ClauseRadar works", ["Upload a PDF or DOCX, or paste your contract text, and choose a mode. ClauseRadar flags the risky clauses with the exact quote and a plain-English explanation, then Pro unlocks the safer rewrite and a ready-to-send counter-proposal email for every flagged clause."]);
   BENTO.forEach(function (b) { h += sec(b.title, [b.text]); });
   h += sec("Zero contract training", ["We never use your agreements to train models, and scans are not stored by default. If you opt in to Contract Memory, we save only the terms and short clause excerpts you review. Contract text is processed by third-party AI providers under their API terms."]);
   h += '<h2 style="font-size:22px;margin:28px 0 6px">Frequently asked questions</h2>';
@@ -82,29 +108,31 @@ export function shellHtml(p) {
   if (p === "/sample") {
     let h = h1("Sample contract audit report") + para("An interactive example of a ClauseRadar audit for " + SAMPLE_REPORT.title + ". Overall risk: " + SAMPLE_REPORT.level + " (" + SAMPLE_REPORT.score + "/100). " + SAMPLE_REPORT.summary);
     SAMPLE_REPORT.clauses.forEach(function (c) { h += sec(c.category.replace(/_/g, " ") + " – " + c.risk_level + " risk", [c.problematic_fine_print, c.why_it_hurts]); });
-    return wrap(h + "<p>" + cta("/dashboard", "Scan your own contract", true) + "</p>");
+    h += sec("The same report for every contract type", ["The scanner has four modes, so you get the same severity-coded report for freelance contracts, creator brand deals, job offer letters and bonds, and agency agreements."]);
+    return wrap(h + modesBlock() + "<p>" + cta("/dashboard", "Scan your own contract", true) + "</p>");
   }
   if (p === "/dashboard") {
-    return wrap(h1("Contract scanner") + para("Upload a PDF or DOCX, or paste contract text, and pick a mode: freelance client contract, BrandDeal Shield for creator sponsorships, Offer Letter and Bond Shield for job seekers, or Agency White-Label Shield. ClauseRadar flags the risky clauses, explains each one in plain English and suggests a safer rewrite.") + "<p>" + cta("/sample", "View Sample Audit Report", false) + "</p>");
+    return wrap(h1("Contract scanner") + para("Upload a PDF or DOCX, or paste contract text, and pick a mode. ClauseRadar flags the risky clauses, explains each one in plain English and suggests a safer rewrite.") + modesBlock() + "<p>" + cta("/sample", "View Sample Audit Report", false) + "</p>");
   }
   if (p === "/pricing") {
-    let h = h1("Pricing") + para("Scanning is free. Go Pro to unlock every safer rewrite, Scope Guard, Payment Chaser, PDF reports and use on up to 3 devices.");
+    let h = h1("Pricing") + para("Scanning is free for every contract type. Go Pro to unlock every safer rewrite, Scope Guard, Payment Chaser, PDF reports and use on up to 3 devices.");
     h += sec("Free", FREE_FEATURES);
     h += sec("Pro", PRO_FEATURES);
     PLANS.forEach(function (k) { h += sec(k.name + " – ₹" + k.price + " per " + k.per, ["Each verified UPI payment adds " + k.days + " days of Pro."]); });
+    h += sec("Who Pro is for", ["Freelancers and developers, creators and influencers, job seekers and freshers, and agencies and consultants who sign contracts regularly."]);
     return wrap(h);
   }
   if (p === "/scope-guard") {
-    return wrap(h1("Scope Guard") + para("Paste the client's quick tweak message. Find out in seconds if it is in scope, billable or a grey area. You get the exact contract clause, a polite ready-to-send reply, a change-order quote and a revision meter.") + "<p>" + cta("/dashboard", "Scan a contract first", true) + "</p>");
+    return wrap(h1("Scope Guard") + para("Paste the client's quick tweak message. Find out in seconds if it is in scope, billable or a grey area. You get the exact contract clause, a polite ready-to-send reply, a change-order quote and a revision meter. Built for freelancers, developers, agencies and creators working on deliverables.") + "<p>" + cta("/dashboard", "Scan a contract first", true) + "</p>");
   }
   if (p === "/chaser") {
-    return wrap(h1("Payment Chaser") + para("The contract says Net-30 and the client is on day 41. Track each invoice against your contract's payment terms and get an escalation sequence: a friendly reminder, a firm reminder quoting the late-fee clause, and a formal demand notice.") + "<p>" + cta("/dashboard", "Scan a contract first", true) + "</p>");
+    return wrap(h1("Payment Chaser") + para("The contract says Net-30 and the client is on day 41. Track each invoice against your contract's payment terms and get an escalation sequence: a friendly reminder, a firm reminder quoting the late-fee clause, and a formal demand notice with the MSMED Act 45-day reference for India. Built for freelancers, creators waiting on brand payments, and agencies.") + "<p>" + cta("/dashboard", "Scan a contract first", true) + "</p>");
   }
   if (p === "/refer") {
-    return wrap(h1("Earn 30% on every ClauseRadar sale") + para("Refer friends to ClauseRadar Pro and earn 30% cash on every verified payment (₹150 per month or ₹1,200 per year per user), paid to your UPI. Get your personal link, track your earnings and request payouts.") + "<p>" + cta("/refer", "Get your referral link", true) + "</p>");
+    return wrap(h1("Earn 30% on every ClauseRadar sale") + para("Refer freelancers, creators, job seekers and agencies to ClauseRadar Pro and earn 30% cash on every verified payment (₹150 per month or ₹1,200 per year per user), paid to your UPI. Get your personal link, track your earnings and request payouts.") + modesBlock() + "<p>" + cta("/refer", "Get your referral link", true) + "</p>");
   }
   if (p === "/radar") {
-    return wrap(h1("Freelance contract risk calculator") + para("Enter your project fee, payment terms, liability, IP transfer and revision limits to estimate what late payment, unpaid revisions and uncapped liability could cost you."));
+    return wrap(h1("Contract risk calculator") + para("Enter your project fee, payment terms, liability, IP transfer and revision limits to estimate what late payment, unpaid revisions and uncapped liability could cost you before you sign a freelance, creator or agency contract."));
   }
   if (p === "/vault") {
     let h = h1("Contract clause library") + para("Contractor-friendly clauses for freelancers, creator brand deals and job offers: payment security, IP retention, creator usage rights and exclusivity, side-project carve-outs, kill fees and capped liability. Have a lawyer review high-value deals.");
