@@ -1,0 +1,21 @@
+
+> safeclause@0.0.0 build
+> vite build && node scripts/prerender.mjs
+
+vite v8.3.2 building client environment for production...
+transforming...
+✓ 184 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                  15.72 kB │ gzip:   4.07 kB
+dist/assets/index-D_MiAEqK.css   27.22 kB │ gzip:   6.84 kB
+dist/assets/index-BnqG1vqO.js   407.97 kB │ gzip: 121.04 kB
+
+✓ built in 3.01s
+prerender: wrote 13 pages (11 in sitemap), verified titles, canonicals and schema, wrote sitemap.xml and robots.txt
+
+npm notice
+npm notice New major version of npm available! 11.20.0 -> 12.2.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+npm notice To update run: npm install -g npm@12.2.1
+npm notice
