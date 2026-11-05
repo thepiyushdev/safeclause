@@ -33,7 +33,7 @@
     <h2 class="h2">One scanner for every contract you sign</h2>
     <p class="muted">Pick your mode. ClauseRadar checks the traps that matter for your situation.</p>
   </div>
-  <div class="grid3">
+  <div class="modes">
     {#each MODES as m}
       <a class="card hover" href="/dashboard" on:click={(e) => pickMode(e, m.key)} style="margin-top:0;text-decoration:none">
         <div style="font-size:1.6rem">{m.icon}</div>

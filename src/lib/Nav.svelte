@@ -1,5 +1,5 @@
 <script>
-  import { route, user, isPro, link, openAuth, openPay, signOutThisDevice } from "./app.js";
+  import { route, user, isPro, profile, authReady, link, openAuth, openPay, signOutThisDevice } from "./app.js";
 
   let open = false;
   // opt = secondary links: always in the mobile menu, shown on very wide desktops only
@@ -9,6 +9,7 @@
     ["/refer", "Earn 30% 💸", true], ["/radar", "Risk calculator", true], ["/vault", "Clause library", true],
   ];
 
+  $: planReady = $authReady && (!$user || $profile.loaded);
   $: initial = $user && $user.email ? $user.email.charAt(0).toUpperCase() : "";
 
   function nav(e, p) {
@@ -37,7 +38,10 @@
     </nav>
 
     <div class="nav-right">
+      {#if planReady}
       <a class="planpill" class:pro={$isPro} href="/pricing" title={$isPro ? "Pro plan" : "Free plan. Tap to upgrade"} on:click={(e) => nav(e, "/pricing")}><span class="pl-pre">Plan: </span><b>{$isPro ? "Pro ⚡" : "Free"}</b></a>
+      {:else}<span class="skel pill"></span>{/if}
+      {#if planReady}
       <div class="nav-desktop">
         {#if !$isPro}<button class="btn sm primary" on:click={() => openPay("pro_year")}>Upgrade</button>{/if}
         {#if $user}
@@ -46,6 +50,7 @@
           <button class="btn sm" on:click={() => openAuth("login")}>Log in</button>
         {/if}
       </div>
+      {:else}<div class="nav-desktop"><span class="skel act"></span></div>{/if}
       <button class="burger" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} on:click={() => (open = !open)}>{open ? "✕" : "☰"}</button>
     </div>
   </div>

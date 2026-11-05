@@ -24,6 +24,7 @@ export const authModal = writable({ open: false, mode: "login", note: "" });
 export const payModal = writable({ open: false, planId: "pro_year" });
 export const showRecovery = writable(false);
 export const scanMode = writable("freelance");
+export const authReady = writable(false);
 export const user = derived(session, function (s) { return s ? s.user : null; });
 
 let currentUser = null;
@@ -72,7 +73,9 @@ export async function refreshProfile(uid) {
     if (r.error) r = await sb.from("profiles").select("pro_until,pro_plan").eq("id", uid).maybeSingle();
     const d = r.error ? {} : r.data || {};
     profile.set({ pro_until: d.pro_until || null, pro_plan: d.pro_plan || null, ref_code: d.ref_code || null, wallet_balance: Number(d.wallet_balance) || 0, loaded: true });
-  } catch (e) {}
+  } catch (e) {
+    profile.update(function (p) { return Object.assign({}, p, { loaded: true }); });
+  }
 }
 
 /* ---------- devices (Free: 1 at a time, Pro: 3) ---------- */
@@ -138,7 +141,10 @@ export async function signOutThisDevice() {
 export function initApp() {
   const shell = document.getElementById("seo-shell");
   if (shell) shell.remove();
+  const boot = document.getElementById("boot");
+  if (boot) boot.remove();
   captureRef();
+  if (!sb) authReady.set(true);
   const onPop = function () {
     const p = normalize(window.location.pathname);
     route.set(p);
@@ -162,7 +168,7 @@ export function initApp() {
   });
   let authSub = null;
   if (sb) {
-    sb.auth.getSession().then(function (r) { session.set(r.data ? r.data.session : null); });
+    sb.auth.getSession().then(function (r) { session.set(r.data ? r.data.session : null); authReady.set(true); }).catch(function () { authReady.set(true); });
     const res = sb.auth.onAuthStateChange(function (event, s) {
       session.set(s);
       if (event === "PASSWORD_RECOVERY") showRecovery.set(true);

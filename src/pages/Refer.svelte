@@ -25,6 +25,11 @@
     return function () { clearInterval(t); };
   });
 
+  function compact(n) {
+    const v = Math.round(Number(n) || 0);
+    return v >= 1000 ? "₹" + (v / 1000).toFixed(1).replace(/\.0$/, "") + "k" : "₹" + v;
+  }
+
   function rupee(n) {
     return "₹" + Math.round(Number(n) || 0).toLocaleString("en-IN");
   }
@@ -108,7 +113,7 @@
       <div class="bars" aria-label="Earnings for the last 6 months">
         {#each chart as c}
           <div class="barcol">
-            <small class="num">{c.amount > 0 ? rupee(c.amount) : ""}</small>
+            <small class="num">{c.amount > 0 ? compact(c.amount) : ""}</small>
             <div class="bar" style="height:{Math.round((c.amount / maxBar) * 100)}%"></div>
             <small>{c.label}</small>
           </div>
