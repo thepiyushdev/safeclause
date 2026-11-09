@@ -1,7 +1,7 @@
 <script>
   import { onDestroy } from "svelte";
   import { get } from "svelte/store";
-  import { scanMode, isPro, MAX_CHARS, authHeaders, readJson, openPay, deriveScore, catLabel, fmt } from "../lib/app.js";
+  import { scanMode, scanJur, isPro, MAX_CHARS, authHeaders, readJson, openPay, deriveScore, catLabel, fmt } from "../lib/app.js";
   import { SAMPLE_CONTRACTS } from "../lib/data.mjs";
   import { openReport } from "../lib/report.js";
   import ClauseCard from "../lib/ClauseCard.svelte";
@@ -19,7 +19,7 @@
     { key: "agency", label: "Agency / Sub-Contract" },
   ];
   let mode = get(scanMode);
-  let jur = "india";
+  let jur = get(scanJur);
   let text = "";
   let drag = false;
   let fileInfo = null;

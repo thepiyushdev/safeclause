@@ -1,6 +1,7 @@
 import { ROUTE_META, SITE, BRAND, OG_IMAGE } from "../src/lib/meta.mjs";
 import { PLANS, FREE_FEATURES, PRO_FEATURES, BENTO, FAQS, SAMPLE_REPORT, VAULT } from "../src/lib/data.mjs";
 import { LEGAL } from "../src/lib/legal.mjs";
+import { GUIDES, MODE_LABELS, MODE_ORDER } from "../src/lib/guides.mjs";
 
 export function esc(s) {
   return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -56,11 +57,34 @@ export function headTags(p) {
     });
     h += jsonLd(faqSchema());
   }
+  if (p.indexOf("/guide/") === 0) {
+    const g = GUIDES.find(function (x) { return x.slug === p; });
+    if (g) {
+      h += jsonLd({
+        "@context": "https://schema.org",
+        "@type": "Article",
+        headline: g.h1,
+        description: g.description,
+        mainEntityOfPage: url,
+        inLanguage: "en",
+        about: MODE_LABELS[g.mode],
+        image: OG_IMAGE,
+        dateModified: new Date().toISOString().slice(0, 10),
+        author: { "@type": "Organization", name: BRAND, url: SITE },
+        publisher: { "@type": "Organization", name: BRAND, url: SITE },
+      });
+      h += jsonLd({
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: g.faqs.map(function (f) { return { "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } }; }),
+      });
+    }
+  }
   return h;
 }
 
 const BTN = "display:inline-block;padding:11px 20px;border-radius:12px;font-weight:600;text-decoration:none;margin:4px 8px 4px 0;";
-const NAVLINKS = [["/", "Home"], ["/dashboard", "Scanner"], ["/scope-guard", "Scope Guard"], ["/chaser", "Payment Chaser"], ["/sample", "Sample report"], ["/pricing", "Pricing"], ["/refer", "Earn 30%"], ["/radar", "Risk calculator"], ["/vault", "Clause library"], ["/privacy", "Privacy"], ["/terms", "Terms"]];
+const NAVLINKS = [["/", "Home"], ["/dashboard", "Scanner"], ["/scope-guard", "Scope Guard"], ["/chaser", "Payment Chaser"], ["/sample", "Sample report"], ["/pricing", "Pricing"], ["/refer", "Earn 30%"], ["/guides", "Guides"], ["/radar", "Risk calculator"], ["/vault", "Clause library"], ["/privacy", "Privacy"], ["/terms", "Terms"]];
 
 function wrap(inner) {
   const nav = NAVLINKS.map(function (l) { return '<a href="' + l[0] + '" style="color:#4f46e5;margin-right:14px">' + l[1] + "</a>"; }).join("");
@@ -98,13 +122,52 @@ function homeShell() {
   h += sec("How ClauseRadar works", ["Upload a PDF or DOCX, or paste your contract text, and choose a mode. ClauseRadar flags the risky clauses with the exact quote and a plain-English explanation, then Pro unlocks the safer rewrite and a ready-to-send counter-proposal email for every flagged clause."]);
   BENTO.forEach(function (b) { h += sec(b.title, [b.text]); });
   h += sec("Zero contract training", ["We never use your agreements to train models, and scans are not stored by default. If you opt in to Contract Memory, we save only the terms and short clause excerpts you review. Contract text is processed by third-party AI providers under their API terms."]);
+  h += '<h2 style="font-size:22px;margin:28px 0 6px">Popular contract guides</h2><ul style="padding-left:20px">' + GUIDES.slice(0, 8).map(function (g) { return '<li style="margin:6px 0"><a href="' + g.slug + '" style="color:#4f46e5">' + esc(g.h1) + "</a></li>"; }).join("") + '</ul><p><a href="/guides" style="color:#4f46e5">See all contract guides</a></p>';
   h += '<h2 style="font-size:22px;margin:28px 0 6px">Frequently asked questions</h2>';
   FAQS.forEach(function (f) { h += '<h3 style="font-size:17px;margin:16px 0 4px">' + esc(f.q) + "</h3>" + para(f.a); });
   return wrap(h);
 }
 
+function guideShell(g) {
+  const same = GUIDES.filter(function (x) { return x.mode === g.mode; });
+  const i = same.findIndex(function (x) { return x.slug === g.slug; });
+  let h = '<p style="font-size:14px;color:#64748b"><a href="/guides" style="color:#4f46e5">Guides</a> &rsaquo; ' + esc(MODE_LABELS[g.mode]) + "</p>";
+  h += h1(g.h1) + para(g.description);
+  h += sec("The risky clause", [g.trap]);
+  h += sec("Why it is dangerous", [g.why]);
+  h += sec("Safer clause to propose", [g.fix]);
+  h += sec("Message to send", g.email.split("\n"));
+  h += '<h2 style="font-size:22px;margin:28px 0 6px">Frequently asked questions</h2>';
+  g.faqs.forEach(function (f) { h += '<h3 style="font-size:17px;margin:16px 0 4px">' + esc(f.q) + "</h3>" + para(f.a); });
+  h += '<h2 style="font-size:22px;margin:28px 0 6px">Related guides</h2><ul style="padding-left:20px">';
+  for (let k = 1; k <= 5 && k < same.length; k++) {
+    const r = same[(i + k) % same.length];
+    h += '<li style="margin:6px 0"><a href="' + r.slug + '" style="color:#4f46e5">' + esc(r.h1) + "</a></li>";
+  }
+  h += "</ul>";
+  h += "<p>" + cta("/dashboard", "Have a contract or offer letter like this? Scan your full document free in 30s", true) + "</p>";
+  return wrap(h);
+}
+
+function hubShell() {
+  let h = h1("Contract guides for freelancers, creators and job seekers") + para("Plain-English help with job bonds, notice period buyouts, brand deal usage rights, late payment, scope creep and agency contracts. Each guide shows the risky clause, why it hurts, a safer rewrite and a message you can send.");
+  MODE_ORDER.forEach(function (m) {
+    h += '<h2 style="font-size:22px;margin:28px 0 6px">' + esc(MODE_LABELS[m]) + '</h2><ul style="padding-left:20px">';
+    GUIDES.filter(function (g) { return g.mode === m; }).forEach(function (g) {
+      h += '<li style="margin:6px 0"><a href="' + g.slug + '" style="color:#4f46e5;font-weight:600">' + esc(g.h1) + "</a> - " + esc(g.description) + "</li>";
+    });
+    h += "</ul>";
+  });
+  return wrap(h);
+}
+
 export function shellHtml(p) {
   if (p === "/") return homeShell();
+  if (p === "/guides") return hubShell();
+  if (p.indexOf("/guide/") === 0) {
+    const g = GUIDES.find(function (x) { return x.slug === p; });
+    if (g) return guideShell(g);
+  }
   if (p === "/sample") {
     let h = h1("Sample contract audit report") + para("An interactive example of a ClauseRadar audit for " + SAMPLE_REPORT.title + ". Overall risk: " + SAMPLE_REPORT.level + " (" + SAMPLE_REPORT.score + "/100). " + SAMPLE_REPORT.summary);
     SAMPLE_REPORT.clauses.forEach(function (c) { h += sec(c.category.replace(/_/g, " ") + " – " + c.risk_level + " risk", [c.problematic_fine_print, c.why_it_hurts]); });

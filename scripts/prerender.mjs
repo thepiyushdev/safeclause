@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ROUTE_META, SITE } from "../src/lib/meta.mjs";
 import { headTags, shellHtml, esc } from "./seo-content.mjs";
+import { GUIDES } from "../src/lib/guides.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.join(root, "dist");
@@ -65,6 +66,15 @@ for (const p of paths) {
   if (html.indexOf('content="' + (m.index ? "index,follow" : "noindex,nofollow") + '"') === -1) bad.push(p + ": robots meta");
   if (html.indexOf("<h1") === -1) bad.push(p + ": h1");
 }
+GUIDES.forEach(function (g) {
+  const html = fs.readFileSync(outFile(g.slug), "utf8");
+  if (html.indexOf('"@type":"Article"') === -1) bad.push(g.slug + ": Article schema");
+  if (html.indexOf('"@type":"FAQPage"') === -1) bad.push(g.slug + ": FAQPage schema");
+  if (html.indexOf(esc(g.trap.slice(0, 40))) === -1) bad.push(g.slug + ": trap text");
+  if (html.indexOf(esc(g.fix.slice(0, 40))) === -1) bad.push(g.slug + ": safer clause text");
+});
+const hub = fs.readFileSync(outFile("/guides"), "utf8");
+if ((hub.match(/href="\/guide\//g) || []).length < GUIDES.length) bad.push("/guides: not every guide is linked");
 const home = fs.readFileSync(tplPath, "utf8");
 if (home.indexOf('"@type":"FAQPage"') === -1) bad.push("/: FAQPage schema");
 if (home.indexOf('"@type":"SoftwareApplication"') === -1) bad.push("/: SoftwareApplication schema");

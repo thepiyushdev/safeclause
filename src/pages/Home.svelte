@@ -1,6 +1,8 @@
 <script>
   import { link, scanMode } from "../lib/app.js";
   import { BENTO, FAQS } from "../lib/data.mjs";
+  import { GUIDES, MODE_LABELS } from "../lib/guides.mjs";
+  const POPULAR = GUIDES.slice(0, 6);
   import DemoViewer from "../lib/DemoViewer.svelte";
   const ICONS = ["🛡️", "⏳", "🔐", "✉️"];
   const MODES = [
@@ -79,6 +81,16 @@
   {#each FAQS as f}
     <details class="faq"><summary>{f.q}</summary><p>{f.a}</p></details>
   {/each}
+</section>
+
+<section class="wrap" style="padding-bottom:8px">
+  <h2 class="h2 center">Popular contract guides</h2>
+  <div class="guides-grid">
+    {#each POPULAR as g (g.slug)}
+      <a class="gcard" href={g.slug} on:click={(e) => link(e, g.slug)}><span class="mbadge">{MODE_LABELS[g.mode]}</span><b>{g.h1}</b><span class="d">{g.description}</span></a>
+    {/each}
+  </div>
+  <p class="center" style="margin-top:14px"><a href="/guides" on:click={(e) => link(e, "/guides")}>See all contract guides →</a></p>
 </section>
 
 <section class="wrap" style="padding-bottom:40px">

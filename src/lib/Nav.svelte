@@ -6,7 +6,7 @@
   const LINKS = [
     ["/dashboard", "Scanner", false], ["/scope-guard", "Scope Guard", false], ["/chaser", "Payment Chaser", false],
     ["/sample", "Sample Report", false], ["/pricing", "Pricing", false],
-    ["/refer", "Earn 30% 💸", true], ["/radar", "Risk calculator", true], ["/vault", "Clause library", true],
+    ["/refer", "Earn 30% 💸", true], ["/guides", "Guides", true], ["/radar", "Risk calculator", true], ["/vault", "Clause library", true],
   ];
 
   $: planReady = $authReady && (!$user || $profile.loaded);

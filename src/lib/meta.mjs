@@ -1,3 +1,4 @@
+import { GUIDES } from "./guides.mjs";
 export const SITE = "https://clauseradar.online";
 export const BRAND = "ClauseRadar";
 // Shown on the Privacy and Terms pages. Change it if this mailbox does not exist.
@@ -45,6 +46,11 @@ export const ROUTE_META = {
     description: "Admin area.",
     index: false, priority: "0.1",
   },
+  "/guides": {
+    title: "100 Contract Guides for Freelancers, Creators & Job Seekers",
+    description: "Plain-English guides to job bonds, notice period buyouts, brand deal usage rights, late payment, scope creep and agency contracts, with safer clauses.",
+    index: true, priority: "0.8",
+  },
   "/radar": {
     title: "Contract Risk Calculator: Cost of Net-90 Payments & Liability",
     description: "Estimate what late payment, unlimited revisions, IP transfer and uncapped liability could cost you before you sign a freelance or agency contract.",
@@ -71,3 +77,8 @@ export const ROUTE_META = {
     index: false, priority: "0.1",
   },
 };
+
+// every guide becomes an indexable route with its own title and description
+GUIDES.forEach(function (g) {
+  ROUTE_META[g.slug] = { title: g.title, description: g.description, index: true, priority: "0.7" };
+});

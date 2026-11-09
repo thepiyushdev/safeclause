@@ -17,6 +17,8 @@
   import Chaser from "./pages/Chaser.svelte";
   import Refer from "./pages/Refer.svelte";
   import Admin from "./pages/Admin.svelte";
+  import Guide from "./pages/Guide.svelte";
+  import GuidesHub from "./pages/GuidesHub.svelte";
 
   onMount(function () {
     return initApp();
@@ -36,6 +38,10 @@
     <ScopeGuard />
   {:else if $route === "/chaser"}
     <Chaser />
+  {:else if $route === "/guides"}
+    <GuidesHub />
+  {:else if $route.indexOf("/guide/") === 0}
+    <Guide path={$route} />
   {:else if $route === "/refer"}
     <Refer />
   {:else if $route === "/admin"}
