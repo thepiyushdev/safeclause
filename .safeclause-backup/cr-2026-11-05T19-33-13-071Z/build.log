@@ -1,0 +1,22 @@
+
+> safeclause@0.0.0 build
+> vite build && node scripts/prerender.mjs
+
+vite v8.3.2 building client environment for production...
+transforming...
+✓ 185 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                  18.04 kB │ gzip:   4.83 kB
+dist/assets/index-DOgTwFPA.css   28.04 kB │ gzip:   7.07 kB
+dist/assets/index-BySUYhZp.js   408.66 kB │ gzip: 121.23 kB
+
+✓ built in 3.22s
+prerender: wrote 13 pages (11 in sitemap), verified titles, canonicals and schema, wrote sitemap.xml and robots.txt
+
+[33m[PLUGIN_TIMINGS] [0mJavaScript callbacks ran for 2.8s of this 3.2s build (90%).
+The slowest callbacks, timed inside each callback (the wait before a callback starts is excluded, the time it awaits is included):
+  - plugin vite-plugin-svelte:compile transform (74%, 2.3s, 23 calls)
+Additional callback time came from callbacks under 1s.
+See https://rolldown.rs/reference/InputOptions.checks#bundlertimings for more details.
+
