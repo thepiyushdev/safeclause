@@ -1,0 +1,27 @@
+
+> safeclause@0.0.0 build
+> vite build && node scripts/prerender.mjs
+
+vite v8.3.2 building client environment for production...
+transforming...
+✓ 188 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                  20.74 kB │ gzip:   5.72 kB
+dist/assets/index-DUdXii_h.css   30.42 kB │ gzip:   7.52 kB
+dist/assets/index-BckBv9hX.js   555.84 kB │ gzip: 164.42 kB
+
+✓ built in 3.46s
+prerender: wrote 114 pages (112 in sitemap), verified titles, canonicals and schema, wrote sitemap.xml and robots.txt
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[33m[PLUGIN_TIMINGS] [0mJavaScript callbacks ran for 3.1s of this 3.4s build (92%).
+The slowest callbacks, timed inside each callback (the wait before a callback starts is excluded, the time it awaits is included):
+  - plugin vite-plugin-svelte:compile transform (78%, 2.7s, 25 calls)
+Additional callback time came from callbacks under 1s.
+See https://rolldown.rs/reference/InputOptions.checks#bundlertimings for more details.
+
