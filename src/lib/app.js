@@ -26,6 +26,7 @@ export const showRecovery = writable(false);
 export const scanMode = writable("freelance");
 export const authReady = writable(false);
 export const scanJur = writable("india");
+export const bootSlow = writable(false);
 export const user = derived(session, function (s) { return s ? s.user : null; });
 
 let currentUser = null;
@@ -144,6 +145,9 @@ export function initApp() {
   if (shell) shell.remove();
   const boot = document.getElementById("boot");
   if (boot) boot.remove();
+  const bootErr = document.getElementById("boot-err");
+  if (bootErr) bootErr.remove();
+  setTimeout(function () { bootSlow.set(true); }, 3000);
   captureRef();
   if (!sb) authReady.set(true);
   const onPop = function () {
@@ -169,7 +173,11 @@ export function initApp() {
   });
   let authSub = null;
   if (sb) {
-    sb.auth.getSession().then(function (r) { session.set(r.data ? r.data.session : null); authReady.set(true); }).catch(function () { authReady.set(true); });
+    try {
+      sb.auth.getSession().then(function (r) { session.set(r.data ? r.data.session : null); authReady.set(true); }).catch(function () { authReady.set(true); });
+    } catch (e) {
+      authReady.set(true);
+    }
     const res = sb.auth.onAuthStateChange(function (event, s) {
       session.set(s);
       if (event === "PASSWORD_RECOVERY") showRecovery.set(true);

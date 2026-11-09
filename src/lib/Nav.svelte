@@ -1,5 +1,5 @@
 <script>
-  import { route, user, isPro, profile, authReady, link, openAuth, openPay, signOutThisDevice } from "./app.js";
+  import { route, user, isPro, profile, authReady, bootSlow, link, openAuth, openPay, signOutThisDevice } from "./app.js";
 
   let open = false;
   // opt = secondary links: always in the mobile menu, shown on very wide desktops only
@@ -9,7 +9,7 @@
     ["/refer", "Earn 30% 💸", true], ["/guides", "Guides", true], ["/radar", "Risk calculator", true], ["/vault", "Clause library", true],
   ];
 
-  $: planReady = $authReady && (!$user || $profile.loaded);
+  $: planReady = $bootSlow || ($authReady && (!$user || $profile.loaded));
   $: initial = $user && $user.email ? $user.email.charAt(0).toUpperCase() : "";
 
   function nav(e, p) {
