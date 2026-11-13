@@ -1,12 +1,12 @@
 import { writable, derived, get } from "svelte/store";
 import { createClient } from "@supabase/supabase-js";
 import { ROUTE_META, SITE } from "./meta.mjs";
+import { WHOP, ASIA_COUNTRIES, ASIA_TIMEZONES } from "./data.mjs";
 
 const SB_URL = import.meta.env.VITE_SUPABASE_URL;
 const SB_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 export const sb = SB_URL && SB_KEY ? createClient(SB_URL, SB_KEY) : null;
 
-export const UPI_ID = "8796021247@fam";
 export const MAX_CHARS = 10000;
 
 export function normalize(p) {
@@ -27,6 +27,9 @@ export const scanMode = writable("freelance");
 export const authReady = writable(false);
 export const scanJur = writable("india");
 export const bootSlow = writable(false);
+export const region = writable("global");
+export const country = writable("");
+export const toast = writable({ open: false, text: "", ok: false });
 export const user = derived(session, function (s) { return s ? s.user : null; });
 
 let currentUser = null;
@@ -149,6 +152,8 @@ export function initApp() {
   if (bootErr) bootErr.remove();
   setTimeout(function () { bootSlow.set(true); }, 3000);
   captureRef();
+  detectRegion();
+  handleCheckoutReturn();
   if (!sb) authReady.set(true);
   const onPop = function () {
     const p = normalize(window.location.pathname);
@@ -164,6 +169,8 @@ export function initApp() {
     if (u) {
       refreshProfile(u.id);
       claimReferral(u);
+      if (returnedFromWhop) verifyCheckout(true);
+      else if (hasPendingCheckout()) verifyCheckout(false);
       syncDevice("register");
       beat = setInterval(function () { if (document.visibilityState === "visible") syncDevice("register"); }, 4 * 60 * 1000);
     } else {
@@ -174,7 +181,7 @@ export function initApp() {
   let authSub = null;
   if (sb) {
     try {
-      sb.auth.getSession().then(function (r) { session.set(r.data ? r.data.session : null); authReady.set(true); }).catch(function () { authReady.set(true); });
+      sb.auth.getSession().then(function (r) { session.set(r.data ? r.data.session : null); authReady.set(true); if (returnedFromWhop && !(r.data && r.data.session)) showToast("Payment received? Log in with the email you used at checkout and Pro will activate.", 10000, false); }).catch(function () { authReady.set(true); });
     } catch (e) {
       authReady.set(true);
     }
@@ -233,6 +240,108 @@ export function openAuth(mode, note) {
 export function openPay(planId) {
   if (!currentUser) { openAuth("login", "Log in first so Pro is added to your account."); return; }
   payModal.set({ open: true, planId: typeof planId === "string" ? planId : "pro_year" });
+}
+
+/* ---------- Whop checkout. Pro is granted only by the server after a signed Whop webhook. ---------- */
+const CHECKOUT_FLAG = "whop_checkout_initiated";
+let toastTimer = null;
+let returnedFromWhop = false;
+let verifying = false;
+
+export function showToast(text, ms, ok) {
+  clearTimeout(toastTimer);
+  toast.set({ open: true, text: text, ok: !!ok });
+  if (ms) toastTimer = setTimeout(function () { toast.update(function (t) { return Object.assign({}, t, { open: false }); }); }, ms);
+}
+
+function lookupCountry(url) {
+  const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = setTimeout(function () { if (ctl) ctl.abort(); }, 3500);
+  return fetch(url, ctl ? { signal: ctl.signal } : {}).then(function (r) { return r.json(); }).then(function (d) {
+    clearTimeout(timer);
+    const c = String((d && (d.country_code || d.country)) || "").toUpperCase();
+    return c.length === 2 ? c : "";
+  }).catch(function () { clearTimeout(timer); return ""; });
+}
+
+// Region: an instant answer from the time zone, then the IP lookup (ipapi.co, then ipwho.is) replaces it.
+export function detectRegion() {
+  let cached = null;
+  try { cached = JSON.parse(window.localStorage.getItem("cr_geo") || "null"); } catch (e) {}
+  if (cached && cached.c && Date.now() - cached.t < 7 * 24 * 3600 * 1000) {
+    country.set(cached.c);
+    region.set(ASIA_COUNTRIES.indexOf(cached.c) !== -1 ? "asia" : "global");
+    return;
+  }
+  let tz = "";
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
+  region.set(ASIA_TIMEZONES.indexOf(tz) !== -1 ? "asia" : "global");
+  lookupCountry("https://ipapi.co/json/").then(function (c) { return c || lookupCountry("https://ipwho.is/"); }).then(function (c) {
+    if (!c) return;
+    country.set(c);
+    region.set(ASIA_COUNTRIES.indexOf(c) !== -1 ? "asia" : "global");
+    try { window.localStorage.setItem("cr_geo", JSON.stringify({ c: c, t: Date.now() })); } catch (e) {}
+  });
+}
+
+export function checkoutUrl(planId, reg) {
+  const set = reg === "asia" ? WHOP.asia : WHOP.global;
+  return (planId === "pro_month" ? set.month : set.year).url;
+}
+
+export function startCheckout(planId) {
+  if (!currentUser) { openAuth("login", "Log in first so Pro is added to your account."); return; }
+  try { window.localStorage.setItem(CHECKOUT_FLAG, String(Date.now())); } catch (e) {}
+  window.location.href = checkoutUrl(planId, get(region));
+}
+
+function hasPendingCheckout() {
+  try {
+    const t = Number(window.localStorage.getItem(CHECKOUT_FLAG)) || 0;
+    if (t && Date.now() - t > 48 * 3600 * 1000) { window.localStorage.removeItem(CHECKOUT_FLAG); return false; }
+    return !!t;
+  } catch (e) { return false; }
+}
+
+// The return link from Whop only tells us the buyer came back. It unlocks nothing by itself.
+function handleCheckoutReturn() {
+  try {
+    if (!/[?&](whop_vip_unlock|paid)=/.test(window.location.search || "")) return;
+    returnedFromWhop = true;
+    if (!window.localStorage.getItem(CHECKOUT_FLAG)) window.localStorage.setItem(CHECKOUT_FLAG, String(Date.now() - 2 * 3600 * 1000));
+    window.history.replaceState({}, document.title, window.location.pathname);
+  } catch (e) {}
+}
+
+// Asks our server whether Whop confirmed a payment for this account. loud = show progress and keep checking for about a minute.
+export async function verifyCheckout(loud) {
+  if (verifying || !get(user)) return;
+  verifying = true;
+  let since = 0;
+  try { since = Number(window.localStorage.getItem(CHECKOUT_FLAG)) || 0; } catch (e) {}
+  if (!since) since = Date.now() - 2 * 3600 * 1000;
+  if (loud) showToast("Verifying your payment...", 0, false);
+  try {
+    for (let i = 0; i < (loud ? 12 : 1); i++) {
+      if (!get(user)) break;
+      const r = await fetch("/api/whop-claim", { method: "POST", headers: await authHeaders(), body: JSON.stringify({ since: since - 10 * 60 * 1000 }) });
+      const d = await readJson(r);
+      if (r.ok && d.confirmed > 0) {
+        try { window.localStorage.removeItem(CHECKOUT_FLAG); } catch (e) {}
+        await refreshProfile(get(user).id);
+        payModal.update(function (m) { return Object.assign({}, m, { open: false }); });
+        showToast("🎉 Welcome to ClauseRadar Pro! Unlimited Scans Unlocked", 8000, true);
+        return;
+      }
+      if (!r.ok) { if (loud) showToast(d.error || "Could not check your payment right now.", 8000, false); return; }
+      if (loud && i < 11) await new Promise(function (res) { setTimeout(res, 5000); });
+    }
+    if (loud) showToast("We have not received the payment confirmation yet. It can take a minute. Use the same email as your ClauseRadar account at checkout. If you were charged and Pro does not appear, contact support and we will activate it.", 14000, false);
+  } catch (e) {
+    if (loud) showToast("Could not check your payment right now. Please try again in a minute.", 8000, false);
+  } finally {
+    verifying = false;
+  }
 }
 
 export function planLabel(pro) {

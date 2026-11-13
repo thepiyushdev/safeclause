@@ -1,6 +1,6 @@
 <script>
-  import { sb, user, deviceState, authModal, payModal, showRecovery, authHeaders, readJson, copyToClipboard, refreshProfile, revokeDevice, syncDevice, markFreshLogin, getRef, UPI_ID, fmtDate } from "./app.js";
-  import { PLANS } from "./data.mjs";
+  import { sb, user, deviceState, authModal, payModal, showRecovery, toast, revokeDevice, syncDevice, markFreshLogin } from "./app.js";
+  import PlanPicker from "./PlanPicker.svelte";
 
   let email = "";
   let password = "";
@@ -8,16 +8,8 @@
   let authOk = false;
   let authBusy = false;
   let newPassword = "";
-  let shot = null;
-  let shotInput;
-  let payBusy = false;
-  let payMsg = "";
-  let payOk = false;
-  let copied = false;
 
   $: otherActive = ($deviceState.devices || []).filter(function (d) { return !d.current && d.active; });
-  $: plan = PLANS.find(function (p) { return p.id === $payModal.planId; }) || PLANS[1];
-  $: upiLink = "upi://pay?pa=" + UPI_ID + "&pn=ClauseRadar&am=" + plan.price + "&cu=INR&tn=ClauseRadar_Pro";
 
   function closeAuth() {
     authModal.update(function (m) { return Object.assign({}, m, { open: false }); });
@@ -34,7 +26,6 @@
 
   function closePay() {
     payModal.update(function (m) { return Object.assign({}, m, { open: false }); });
-    payMsg = "";
   }
   function pickPlan(id) {
     payModal.update(function (m) { return Object.assign({}, m, { planId: id }); });
@@ -101,62 +92,6 @@
       authBusy = false;
     }
   }
-
-  function shrinkImage(file) {
-    return new Promise(function (resolve, reject) {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = function () {
-        const ratio = Math.min(1, 1400 / Math.max(img.width, img.height));
-        const c = document.createElement("canvas");
-        c.width = Math.round(img.width * ratio);
-        c.height = Math.round(img.height * ratio);
-        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        resolve(c.toDataURL("image/jpeg", 0.82).split(",")[1]);
-      };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("Could not read this image.")); };
-      img.src = url;
-    });
-  }
-
-  function onShot(e) {
-    shot = e.target.files && e.target.files[0] ? e.target.files[0] : null;
-    payMsg = "";
-  }
-
-  async function copyUpi() {
-    await copyToClipboard(UPI_ID);
-    copied = true;
-    setTimeout(function () { copied = false; }, 1600);
-  }
-
-  async function verifyPayment() {
-    if (!shot) { payOk = false; payMsg = "Choose your payment screenshot first."; return; }
-    payBusy = true;
-    payMsg = "";
-    payOk = false;
-    try {
-      const b64 = await shrinkImage(shot);
-      const r = await fetch("/api/verify-payment", {
-        method: "POST",
-        headers: await authHeaders(),
-        body: JSON.stringify({ image: b64, mime: "image/jpeg", plan: plan.id, ref: getRef() }),
-      });
-      const data = await readJson(r);
-      if (!r.ok || !data.success) throw new Error(data.error || "Verification failed.");
-      if ($user) await refreshProfile($user.id);
-      payOk = true;
-      payMsg = "✅ Payment verified! Pro is active until " + fmtDate(data.pro_until) + ".";
-      shot = null;
-      if (shotInput) shotInput.value = "";
-    } catch (err) {
-      payOk = false;
-      payMsg = err && err.message ? err.message : "Verification failed.";
-    } finally {
-      payBusy = false;
-    }
-  }
 </script>
 
 {#if $authModal.open}
@@ -210,25 +145,8 @@
     <div class="modal" role="dialog" aria-modal="true">
       <button class="x" aria-label="Close" on:click={closePay}>✕</button>
       <h2>Upgrade to Pro</h2>
-      <div class="chips">
-        {#each PLANS as p}
-          <button class:on={$payModal.planId === p.id} on:click={() => pickPlan(p.id)}>{p.per === "year" ? "Yearly" : "Monthly"} • ₹{p.price.toLocaleString("en-IN")}{p.badge ? " (" + p.badge + ")" : ""}</button>
-        {/each}
-      </div>
-      <p class="muted small">Pro: every rewrite unlocked, unlimited Scope Guard and Payment Chaser, PDF reports and up to 3 devices. This payment adds {plan.days} days of Pro. Renewal is manual.</p>
-
-      <h3 class="sub">Step 1: Pay ₹{plan.price.toLocaleString("en-IN")}</h3>
-      <a class="btn primary block upi" href={upiLink}>Tap to Pay with UPI ⚡</a>
-      <p class="muted small">Opens GPay, PhonePe or Paytm on your phone. UPI ID: <b>{UPI_ID}</b>
-        <button class="linkbtn" on:click={copyUpi}>{copied ? "Copied ✓" : "Copy"}</button>
-      </p>
-
-      <h3 class="sub">Step 2: Upload the payment screenshot</h3>
-      <input type="file" accept="image/*" on:change={onShot} bind:this={shotInput} />
-      <button class="btn block" on:click={verifyPayment} disabled={payBusy}>
-        {payBusy ? "AI is verifying..." : "Verify payment & activate Pro"}
-      </button>
-      {#if payMsg}<div class={payOk ? "ok" : "error"}>{payMsg}</div>{/if}
+      <p class="muted small" style="margin-top:0">Every rewrite unlocked, unlimited Scope Guard and Payment Chaser, PDF reports and up to 3 devices.</p>
+      <PlanPicker planId={$payModal.planId} on:change={(e) => pickPlan(e.detail)} />
     </div>
   </div>
 {/if}
@@ -249,5 +167,12 @@
         <button class="btn mfull" on:click={() => syncDevice("register")}>Try again</button>
       </div>
     </div>
+  </div>
+{/if}
+
+{#if $toast.open}
+  <div class={"toast" + ($toast.ok ? " ok" : "")} role="status" aria-live="polite">
+    {$toast.text}
+    <button class="x" aria-label="Dismiss" on:click={() => toast.update((t) => Object.assign({}, t, { open: false }))}>✕</button>
   </div>
 {/if}

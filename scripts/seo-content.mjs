@@ -53,7 +53,7 @@ export function headTags(p) {
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
       description: m.description,
-      offers: { "@type": "AggregateOffer", priceCurrency: "INR", lowPrice: "499", highPrice: "3999", offerCount: String(PLANS.length) },
+      offers: { "@type": "AggregateOffer", priceCurrency: "USD", lowPrice: "5", highPrice: "59", offerCount: String(PLANS.length) },
     });
     h += jsonLd(faqSchema());
   }
@@ -181,7 +181,7 @@ export function shellHtml(p) {
     let h = h1("Pricing") + para("Scanning is free for every contract type. Go Pro to unlock every safer rewrite, Scope Guard, Payment Chaser, PDF reports and use on up to 3 devices.");
     h += sec("Free", FREE_FEATURES);
     h += sec("Pro", PRO_FEATURES);
-    PLANS.forEach(function (k) { h += sec(k.name + " – ₹" + k.price + " per " + k.per, ["Each verified UPI payment adds " + k.days + " days of Pro."]); });
+    PLANS.forEach(function (k) { h += sec(k.name + " – $" + k.price + " per " + k.per, ["Global price. Asia special pricing is $" + k.asiaPrice + " per " + k.per + " for India, Pakistan, Bangladesh, Nepal, Sri Lanka, Indonesia, the Philippines, Vietnam and Nigeria. Billed automatically through Whop. Cancel auto-pay at any time."]); });
     h += sec("Who Pro is for", ["Freelancers and developers, creators and influencers, job seekers and freshers, and agencies and consultants who sign contracts regularly."]);
     return wrap(h);
   }

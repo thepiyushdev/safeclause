@@ -22,8 +22,8 @@ export const ROUTE_META = {
     index: true, priority: "0.9",
   },
   "/pricing": {
-    title: "ClauseRadar Pricing: Free Contract Scan, Pro from ₹499/month",
-    description: "Scan any contract free. Go Pro for ₹499/month or ₹3,999/year: every rewrite unlocked, Scope Guard, Payment Chaser, PDF reports and 3 devices.",
+    title: "ClauseRadar Pricing: Free Contract Scan, Pro from $5/month",
+    description: "Scan any contract free. Go Pro from $5/month or $35/year with Asia pricing ($9 and $59 globally): every rewrite unlocked, Scope Guard, Payment Chaser, PDF reports.",
     index: true, priority: "0.8",
   },
   "/scope-guard": {
@@ -68,7 +68,7 @@ export const ROUTE_META = {
   },
   "/terms": {
     title: "Terms of Service & Not-Legal-Advice Notice – ClauseRadar",
-    description: "Terms for using ClauseRadar: Free and Pro plans, UPI payments, referral program rules, acceptable use and the not-legal-advice disclaimer.",
+    description: "Terms for using ClauseRadar: Free and Pro plans, Whop subscriptions, referral program rules, acceptable use and the not-legal-advice disclaimer.",
     index: true, priority: "0.3",
   },
   "/account": {

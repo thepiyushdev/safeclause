@@ -1,7 +1,22 @@
+// Prices in US dollars. "price" is the global price, "asiaPrice" is the Asia special price.
 export const PLANS = [
-  { id: "pro_month", name: "Pro Monthly", price: 499, days: 30, per: "month", popular: false },
-  { id: "pro_year", name: "Pro Yearly", price: 3999, days: 365, per: "year", popular: true, badge: "Save 33%" },
+  { id: "pro_month", name: "Pro Monthly", price: 9, asiaPrice: 5, days: 30, per: "month", popular: false },
+  { id: "pro_year", name: "Pro Yearly", price: 59, asiaPrice: 35, days: 365, per: "year", popular: true, badge: "Save 45%" },
 ];
+
+// Whop hosted checkout links. The matching plan ids are also listed in api/whop-webhook.js.
+export const WHOP = {
+  asia: {
+    month: { price: 5, url: "https://whop.com/checkout/plan_2cmqmRXvCGKS1" },
+    year: { price: 35, url: "https://whop.com/checkout/plan_KrnnSLsfIvu4t" },
+  },
+  global: {
+    month: { price: 9, url: "https://whop.com/checkout/plan_gCA9uEvLhFlmm" },
+    year: { price: 59, url: "https://whop.com/checkout/plan_MFivxwEnHBRnp" },
+  },
+};
+export const ASIA_COUNTRIES = ["IN", "PK", "BD", "NP", "LK", "ID", "PH", "VN", "NG"];
+export const ASIA_TIMEZONES = ["Asia/Kolkata", "Asia/Calcutta", "Asia/Karachi", "Asia/Dhaka", "Asia/Kathmandu", "Asia/Katmandu", "Asia/Colombo", "Asia/Jakarta", "Asia/Pontianak", "Asia/Makassar", "Asia/Jayapura", "Asia/Manila", "Asia/Ho_Chi_Minh", "Asia/Saigon", "Africa/Lagos"];
 
 // Compatibility alias so any older import of PACKS keeps building. It mirrors the Pro plans; nothing sells per-contract packs.
 export const PACKS = PLANS.map(function (p) {
@@ -35,7 +50,7 @@ export const FAQS = [
   { q: "How fast is the audit?", a: "Most audits finish in a few seconds, and longer contracts (up to 10,000 characters) in well under 30 seconds." },
   { q: "Will asking for changes upset my client?", a: "The counter-proposal emails are written to be polite and professional, presenting changes as standard protective terms. Many clients accept balanced terms, but there are no guarantees, and you decide what to send." },
   { q: "What does Pro include?", a: "Pro unlocks every safer rewrite and counter-proposal email on every audit, plus unlimited Scope Guard checks, unlimited Payment Chaser invoices, PDF exports and use on up to 3 devices at the same time. Scanning and the risk score preview stay free." },
-  { q: "How does billing work?", a: "You pay by UPI and upload the payment screenshot. Each verified payment adds 30 days (monthly) or 365 days (yearly) of Pro to your account. Automatic renewal is not switched on yet, so you renew by paying again before your Pro time ends." },
+  { q: "How does billing work?", a: "Pro is a subscription billed automatically through Whop, monthly or yearly. Asia special pricing is $5 per month or $35 per year. Global pricing is $9 per month or $59 per year. Pro activates automatically once Whop confirms your payment, as long as you use the same email as your ClauseRadar account. You can cancel auto-pay at any time from your Whop receipt or dashboard." },
   { q: "Is my contract stored?", a: "By default, no. Scans are not saved in our database and we do not use your contracts to train models. If you choose Save to Contract Memory, we keep only the project terms and short clause excerpts you review and approve, never the full contract, and you can delete them any time. Contract text is processed by third-party AI providers under their API terms." },
   { q: "Can creators scan brand sponsorship contracts?", a: "Yes. Choose BrandDeal Shield in the scanner and paste or upload your brand deal. ClauseRadar checks usage rights (organic versus paid ads and whitelisting, and how long), perpetual or irrevocable licences, category exclusivity, reshoot and edit limits, payment deadlines and kill fees, then writes a polite counter-email to the brand or talent agency." },
   { q: "Can job seekers scan offer letters and employment bonds?", a: "Yes. Choose Job Offer and Bond in the scanner. ClauseRadar flags service bonds and training-cost penalties, 90-day notice period buyouts, withheld original certificates, side-project IP claims and non-competes, and drafts a polite clarification email to HR. For India it keeps Section 27 of the Indian Contract Act 1872 in mind. It is not legal advice, so ask a lawyer before you sign or fight a bond." },
