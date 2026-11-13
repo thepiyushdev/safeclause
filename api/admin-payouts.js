@@ -115,6 +115,20 @@ function deviceFail(res, g) {
 const attempts = {};
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+// TRON address = base58check(0x41 + 20 bytes). True only when the format and the checksum are both right.
+function tronOk(addr) {
+  const a = String(addr || "");
+  if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(a)) return false;
+  let n = BigInt(0);
+  for (let i = 0; i < a.length; i++) n = n * BigInt(58) + BigInt(B58.indexOf(a[i]));
+  const hex = n.toString(16).padStart(50, "0");
+  if (hex.length !== 50) return false;
+  const buf = Buffer.from(hex, "hex");
+  const h = crypto.createHash("sha256").update(crypto.createHash("sha256").update(buf.subarray(0, 21)).digest()).digest();
+  return buf[0] === 0x41 && h.subarray(0, 4).equals(buf.subarray(21));
+}
+
 function sha(s) {
   return crypto.createHash("sha256").update(String(s || "")).digest();
 }
@@ -173,14 +187,19 @@ async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    const rows = await sbFetch("payout_requests?select=id,user_id,email,amount,upi_id,status,created_at,approved_at&order=created_at.desc&limit=200");
+    const rows = await sbFetch("payout_requests?select=id,user_id,email,amount,upi_id,payout_method,payout_address,legacy_inr,status,created_at,approved_at&order=created_at.desc&limit=200");
     const list = rows || [];
+    for (let i = 0; i < list.length; i++) {
+      list[i].payout_method = list[i].payout_method || "upi";
+      list[i].payout_address = list[i].payout_address || list[i].upi_id || "";
+      list[i].address_ok = list[i].payout_method === "usdt_trc20" ? tronOk(list[i].payout_address) : true;
+    }
     // For pending payouts, attach the referral sales behind the balance so you can check the UTRs in your UPI app first.
     for (let i = 0; i < list.length; i++) {
       list[i].evidence = [];
       if (list[i].status === "pending") {
         try {
-          list[i].evidence = (await sbFetch("referrals?referrer_id=eq." + enc(list[i].user_id) + "&select=txn_id,plan,sale_amount,commission_amount,created_at&order=created_at.desc&limit=20")) || [];
+          list[i].evidence = (await sbFetch("referrals?referrer_id=eq." + enc(list[i].user_id) + "&select=txn_id,plan,sale_amount,commission_amount,reversed,created_at&order=created_at.desc&limit=20")) || [];
         } catch (e) {}
       }
     }

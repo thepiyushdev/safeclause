@@ -289,9 +289,11 @@ export function checkoutUrl(planId, reg) {
   return (planId === "pro_month" ? set.month : set.year).url;
 }
 
-export function startCheckout(planId) {
+export async function startCheckout(planId) {
   if (!currentUser) { openAuth("login", "Log in first so Pro is added to your account."); return; }
   try { window.localStorage.setItem(CHECKOUT_FLAG, String(Date.now())); } catch (e) {}
+  // make sure the referral code is attached to this account before the payment happens
+  try { await Promise.race([claimReferral(currentUser), new Promise(function (res) { setTimeout(res, 1500); })]); } catch (e) {}
   window.location.href = checkoutUrl(planId, get(region));
 }
 
@@ -507,7 +509,7 @@ export async function scopeUsage() {
 }
 
 /* ---------- Referral program (30% commission) ---------- */
-export const MIN_PAYOUT = 100;
+export const MIN_PAYOUT = 5;
 export const referrals = writable([]);
 export const payouts = writable([]);
 export const refError = writable("");
@@ -543,7 +545,9 @@ function refFriendly(e) {
   const code = String((e && e.code) || "");
   const m = String((e && e.message) || e || "");
   if (m.indexOf("INVALID_UPI") !== -1) return new Error("Enter a valid UPI ID, like name@bank.");
-  if (m.indexOf("MIN_PAYOUT") !== -1) return new Error("The minimum payout is ₹" + MIN_PAYOUT + ".");
+  if (m.indexOf("INVALID_TRC20") !== -1) return new Error("That is not a valid TRON (TRC20) address. It starts with T and has 34 characters.");
+  if (m.indexOf("INVALID_METHOD") !== -1) return new Error("Choose UPI or USDT (TRC20).");
+  if (m.indexOf("MIN_PAYOUT") !== -1) return new Error("The minimum payout is $" + MIN_PAYOUT + ".");
   if (m.indexOf("INSUFFICIENT_BALANCE") !== -1) return new Error("You do not have enough balance.");
   if (m.indexOf("PENDING_EXISTS") !== -1) return new Error("You already have a pending payout. Wait for it to be approved.");
   if (code === "PGRST205" || code === "PGRST202" || code === "42P01" || m.indexOf("schema cache") !== -1 || m.indexOf("does not exist") !== -1 || m.indexOf("Could not find") !== -1) return new Error(REF_SCHEMA_HELP);
@@ -563,9 +567,31 @@ export async function loadReferralData() {
   await refreshProfile(u.id);
 }
 
-export async function requestPayout(upi) {
+// TRON addresses are base58check: 1 version byte (0x41) + 20 bytes + a 4-byte double-SHA256 checksum. This catches typos before money is sent.
+export async function isValidTron(addr) {
+  const a = String(addr || "");
+  if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(a)) return false;
+  try {
+    const ALPHA = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    let n = BigInt(0);
+    for (let i = 0; i < a.length; i++) n = n * BigInt(58) + BigInt(ALPHA.indexOf(a[i]));
+    const hex = n.toString(16).padStart(50, "0");
+    if (hex.length !== 50) return false;
+    const bytes = new Uint8Array(25);
+    for (let i = 0; i < 25; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+    const h1 = await crypto.subtle.digest("SHA-256", bytes.slice(0, 21));
+    const h2 = new Uint8Array(await crypto.subtle.digest("SHA-256", h1));
+    return bytes[0] === 65 && h2[0] === bytes[21] && h2[1] === bytes[22] && h2[2] === bytes[23] && h2[3] === bytes[24];
+  } catch (e) {
+    return true;
+  }
+}
+
+export async function requestPayout(method, address) {
   if (!sb || !get(user)) throw new Error("Please log in first.");
-  const r = await sb.rpc("request_payout", { p_upi: String(upi || "").trim() });
+  const a = String(address || "").trim();
+  if (method === "usdt_trc20" && !(await isValidTron(a))) throw new Error("That does not look like a valid TRON (TRC20) address. Copy it again from your wallet and make sure the network is TRON (TRC20).");
+  const r = await sb.rpc("request_payout", { p_method: method, p_address: a });
   if (r.error) throw refFriendly(r.error);
   await loadReferralData();
   return r.data;

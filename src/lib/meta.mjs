@@ -38,7 +38,7 @@ export const ROUTE_META = {
   },
   "/refer": {
     title: "Earn 30% Commission: ClauseRadar Referral Program",
-    description: "Refer freelancers, creators, job seekers and agencies to ClauseRadar Pro and earn 30% cash on every verified payment, paid to your UPI.",
+    description: "Refer freelancers, creators and agencies to ClauseRadar Pro and earn 30% recurring commission on every subscription, paid via UPI or USDT (TRC20).",
     index: true, priority: "0.5",
   },
   "/admin": {

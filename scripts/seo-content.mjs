@@ -192,7 +192,7 @@ export function shellHtml(p) {
     return wrap(h1("Payment Chaser") + para("The contract says Net-30 and the client is on day 41. Track each invoice against your contract's payment terms and get an escalation sequence: a friendly reminder, a firm reminder quoting the late-fee clause, and a formal demand notice with the MSMED Act 45-day reference for India. Built for freelancers, creators waiting on brand payments, and agencies.") + "<p>" + cta("/dashboard", "Scan a contract first", true) + "</p>");
   }
   if (p === "/refer") {
-    return wrap(h1("Earn 30% on every ClauseRadar sale") + para("Refer freelancers, creators, job seekers and agencies to ClauseRadar Pro and earn 30% cash on every verified payment (₹150 per month or ₹1,200 per year per user), paid to your UPI. Get your personal link, track your earnings and request payouts.") + modesBlock() + "<p>" + cta("/refer", "Get your referral link", true) + "</p>");
+    return wrap(h1("Earn 30% on every ClauseRadar sale") + para("Refer freelancers, creators, job seekers and agencies to ClauseRadar Pro and earn 30% recurring commission on every Pro subscription ($1.50 to $17.70 per sale), paid to your UPI (India) or your USDT TRC20 wallet (global). Get your personal link, track your earnings and request payouts.") + modesBlock() + "<p>" + cta("/refer", "Get your referral link", true) + "</p>");
   }
   if (p === "/radar") {
     return wrap(h1("Contract risk calculator") + para("Enter your project fee, payment terms, liability, IP transfer and revision limits to estimate what late payment, unpaid revisions and uncapped liability could cost you before you sign a freelance, creator or agency contract."));
