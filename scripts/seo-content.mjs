@@ -133,12 +133,36 @@ function guideShell(g) {
   const i = same.findIndex(function (x) { return x.slug === g.slug; });
   let h = '<p style="font-size:14px;color:#64748b"><a href="/guides" style="color:#4f46e5">Guides</a> &rsaquo; ' + esc(MODE_LABELS[g.mode]) + "</p>";
   h += h1(g.h1) + para(g.description);
+  if (g.pillar) {
+    const pg = GUIDES.find(function (x) { return x.slug === g.pillar; });
+    if (pg) h += '<p style="font-size:14px;color:#64748b">Part of the full guide: <a href="' + pg.slug + '" style="color:#4f46e5">' + esc(pg.h1) + "</a></p>";
+  }
+  if (g.body) {
+    h += '<p style="font-size:14px;color:#64748b"><b>On this page:</b> ' + g.body.map(function (b) { return '<a href="#' + esc(b.id) + '" style="color:#4f46e5">' + esc(b.h) + "</a>"; }).join(" · ") + "</p>";
+  }
   h += sec("The risky clause", [g.trap]);
   h += sec("Why it is dangerous", [g.why]);
+  (g.body || []).forEach(function (b) {
+    h += '<h2 id="' + esc(b.id) + '" style="font-size:22px;margin:28px 0 6px">' + esc(b.h) + "</h2>";
+    (b.p || []).forEach(function (t) { h += para(t); });
+    if (b.list) h += '<ul style="color:#334155;font-size:17px;line-height:1.6">' + b.list.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>";
+    (b.after || []).forEach(function (t) { h += para(t); });
+    if (b.table) {
+      h += '<table style="border-collapse:collapse;width:100%;font-size:16px">' + b.table.map(function (row, ri) { return "<tr>" + row.map(function (cell) { return (ri === 0 ? "<th" : "<td") + ' style="border:1px solid #e2e8f0;padding:8px 10px;text-align:left;vertical-align:top">' + esc(cell) + (ri === 0 ? "</th>" : "</td>"); }).join("") + "</tr>"; }).join("") + "</table>";
+    }
+  });
   h += sec("Safer clause to propose", [g.fix]);
   h += sec("Message to send", g.email.split("\n"));
   h += '<h2 style="font-size:22px;margin:28px 0 6px">Frequently asked questions</h2>';
   g.faqs.forEach(function (f) { h += '<h3 style="font-size:17px;margin:16px 0 4px">' + esc(f.q) + "</h3>" + para(f.a); });
+  if (g.links) {
+    h += '<h2 style="font-size:22px;margin:28px 0 6px">More on bonds, notice periods and exits</h2><ul style="padding-left:20px">';
+    g.links.forEach(function (sl) {
+      const lg = GUIDES.find(function (x) { return x.slug === sl; });
+      if (lg) h += '<li style="margin:6px 0"><a href="' + lg.slug + '" style="color:#4f46e5">' + esc(lg.h1) + "</a></li>";
+    });
+    h += "</ul>";
+  }
   h += '<h2 style="font-size:22px;margin:28px 0 6px">Related guides</h2><ul style="padding-left:20px">';
   for (let k = 1; k <= 5 && k < same.length; k++) {
     const r = same[(i + k) % same.length];

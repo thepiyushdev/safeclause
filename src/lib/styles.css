@@ -318,6 +318,19 @@ img,svg,video,canvas,iframe{max-width:100%}
 @media(min-width:1280px){.narrow{max-width:940px}}
 @media(min-width:1600px){.wrap:not(.narrow){max-width:1240px}.nav-in{max-width:1240px}}
 
+/* v16: pillar guide */
+.toc{margin:16px 0 0;padding:16px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:.9375rem}
+.toc ol{margin:8px 0 0;padding-left:20px;display:grid;gap:4px}
+.toc a{color:var(--indigo);text-decoration:none}
+.toc a:hover{text-decoration:underline}
+.gsec{scroll-margin-top:72px}
+.gsec p{margin:0 0 12px;color:var(--ink2)}
+.gsec ul:not(.gl){margin:0 0 12px;padding-left:20px;color:var(--ink2);display:grid;gap:6px}
+.gtable-wrap{overflow-x:auto;margin:8px 0 0}
+.gtable{width:100%;border-collapse:collapse;font-size:.9375rem;min-width:420px}
+.gtable th,.gtable td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}
+.gtable th{background:#f8fafc;font-size:.8125rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+
 /* v13: payout method badges */
 .mb-usdt{background:#dcfce7;color:#166534}
 
